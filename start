@@ -1,0 +1,5 @@
+#!/bin/bash
+
+export BOT_TOKEN="NzEwODMzMjY2ODAyMDMyNzQw.Xr7Pag.J8n5DlIqiu6bbotKMKc0ixOI_og"
+poetry run python -m tle &
+
