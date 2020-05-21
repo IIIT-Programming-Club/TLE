@@ -58,7 +58,8 @@ async def initialize(nodb):
     try:
         with open(constants.CONTEST_WRITERS_JSON_FILE_PATH) as f:
             data = json.load(f)
-        _contest_id_to_writers_map = {contest['id']: contest['writers'] for contest in data}
+        _contest_id_to_writers_map = {
+            contest['id']: contest['writers'] for contest in data}
         logger.info('Contest writers loaded from JSON file')
     except FileNotFoundError:
         logger.warning('JSON file containing contest writers not found')
@@ -105,9 +106,11 @@ _NONSTANDARD_CONTEST_INDICATORS = [
 def is_nonstandard_contest(contest):
     return any(string in contest.name.lower() for string in _NONSTANDARD_CONTEST_INDICATORS)
 
+
 def is_nonstandard_problem(problem):
     return (is_nonstandard_contest(cache2.contest_cache.get_contest(problem.contestId)) or
             problem.tag_matches(['*special']))
+
 
 # These are special rated-for-all contests which have a combined ranklist for onsite and online
 # participants. The onsite participants have their submissions marked as out of competition. Just
@@ -115,7 +118,8 @@ def is_nonstandard_problem(problem):
 _RATED_FOR_ONSITE_CONTEST_IDS = [
     86,   # Yandex.Algorithm 2011 Round 2 https://codeforces.com/contest/86
     173,  # Croc Champ 2012 - Round 1 https://codeforces.com/contest/173
-    335,  # MemSQL start[c]up Round 2 - online version https://codeforces.com/contest/335
+    # MemSQL start[c]up Round 2 - online version https://codeforces.com/contest/335
+    335,
 ]
 
 
@@ -129,7 +133,8 @@ class ResolveHandleError(commands.CommandError):
 
 class HandleCountOutOfBoundsError(ResolveHandleError):
     def __init__(self, mincnt, maxcnt):
-        super().__init__(f'Number of handles must be between {mincnt} and {maxcnt}')
+        super().__init__(
+            f'Number of handles must be between {mincnt} and {maxcnt}')
 
 
 class FindMemberFailedError(ResolveHandleError):
@@ -139,7 +144,8 @@ class FindMemberFailedError(ResolveHandleError):
 
 class HandleNotRegisteredError(ResolveHandleError):
     def __init__(self, member):
-        super().__init__(f'Codeforces handle for {member.mention} not found in database')
+        super().__init__(
+            f'Codeforces handle for {member.mention} not found in database')
 
 
 class HandleIsVjudgeError(ResolveHandleError):
@@ -153,8 +159,10 @@ class HandleIsVjudgeError(ResolveHandleError):
 class FilterError(commands.CommandError):
     pass
 
+
 class ParamParseError(FilterError):
     pass
+
 
 def time_format(seconds):
     seconds = int(seconds)
@@ -171,7 +179,8 @@ def pretty_time_format(seconds, *, shorten=False, only_most_significant=False, a
         (hours, 'hour', 'hours'),
         (minutes, 'minute', 'minutes'),
     ]
-    timeprint = [(cnt, singular, plural) for cnt, singular, plural in timespec if cnt]
+    timeprint = [(cnt, singular, plural)
+                 for cnt, singular, plural in timespec if cnt]
     if not timeprint or always_seconds:
         timeprint.append((seconds, 'second', 'seconds'))
     if only_most_significant:
@@ -191,6 +200,7 @@ def days_ago(t):
     if days < 2:
         return 'yesterday'
     return f'{math.floor(days)} days ago'
+
 
 async def resolve_handles(ctx, converter, handles, *, mincnt=1, maxcnt=5):
     """Convert an iterable of strings to CF handles. A string beginning with ! indicates Discord username,
@@ -214,6 +224,7 @@ async def resolve_handles(ctx, converter, handles, *, mincnt=1, maxcnt=5):
         resolved_handles.append(handle)
     return resolved_handles
 
+
 def filter_flags(args, params):
     args = list(args)
     flags = [False] * len(params)
@@ -224,6 +235,7 @@ def filter_flags(args, params):
         except ValueError:
             rest.append(arg)
     return flags, rest
+
 
 def parse_date(arg):
     try:
@@ -238,6 +250,7 @@ def parse_date(arg):
         return time.mktime(datetime.datetime.strptime(arg, fmt).timetuple())
     except ValueError:
         raise ParamParseError(f'{arg} is an invalid date argument')
+
 
 class SubFilter:
     def __init__(self, rated=True):
@@ -259,7 +272,7 @@ class SubFilter:
                 self.team = True
             elif arg == '+contest':
                 self.types.append('CONTESTANT')
-            elif arg =='+outof':
+            elif arg == '+outof':
                 self.types.append('OUT_OF_COMPETITION')
             elif arg == '+virtual':
                 self.types.append('VIRTUAL')
@@ -279,7 +292,8 @@ class SubFilter:
                 self.dlo = max(self.dlo, parse_date(arg[3:]))
             elif arg[0:3] in ['r<=', 'r>=']:
                 if len(arg) < 4:
-                    raise ParamParseError(f'{arg} is an invalid rating argument')
+                    raise ParamParseError(
+                        f'{arg} is an invalid rating argument')
                 elif arg[1] == '>':
                     self.rlo = max(self.rlo, int(arg[3:]))
                 else:
@@ -288,7 +302,8 @@ class SubFilter:
             else:
                 rest.append(arg)
 
-        self.types = self.types or ['CONTESTANT', 'OUT_OF_COMPETITION', 'VIRTUAL', 'PRACTICE']
+        self.types = self.types or ['CONTESTANT',
+                                    'OUT_OF_COMPETITION', 'VIRTUAL', 'PRACTICE']
         return rest
 
     @staticmethod
@@ -302,10 +317,12 @@ class SubFilter:
 
         for submission in submissions:
             problem = submission.problem
-            contest = cache2.contest_cache.contest_by_id.get(problem.contestId, None)
+            contest = cache2.contest_cache.contest_by_id.get(
+                problem.contestId, None)
             if submission.verdict == 'OK':
                 # Assume (name, contest start time) is a unique identifier for problems
-                problem_key = (problem.name, contest.startTimeSeconds if contest else 0)
+                problem_key = (
+                    problem.name, contest.startTimeSeconds if contest else 0)
                 if problem_key not in problems:
                     solved_subs.append(submission)
                     problems.add(problem_key)
@@ -316,15 +333,19 @@ class SubFilter:
         filtered_subs = []
         for submission in submissions:
             problem = submission.problem
-            contest = cache2.contest_cache.contest_by_id.get(problem.contestId, None)
+            contest = cache2.contest_cache.contest_by_id.get(
+                problem.contestId, None)
             type_ok = submission.author.participantType in self.types
             date_ok = self.dlo <= submission.creationTimeSeconds < self.dhi
             tag_ok = not self.tags or problem.tag_matches(self.tags)
-            index_ok = not self.indices or any(index.lower() == problem.index.lower() for index in self.indices)
-            contest_ok = not self.contests or (contest and contest.matches(self.contests))
+            index_ok = not self.indices or any(
+                index.lower() == problem.index.lower() for index in self.indices)
+            contest_ok = not self.contests or (
+                contest and contest.matches(self.contests))
             team_ok = self.team or len(submission.author.members) == 1
             if self.rated:
-                problem_ok = contest and contest.id < cf.GYM_ID_THRESHOLD and not is_nonstandard_problem(problem)
+                problem_ok = contest and contest.id < cf.GYM_ID_THRESHOLD and not is_nonstandard_problem(
+                    problem)
                 rating_ok = problem.rating and self.rlo <= problem.rating <= self.rhi
             else:
                 # acmsguru and gym allowed
@@ -337,5 +358,5 @@ class SubFilter:
 
     def filter_rating_changes(self, rating_changes):
         rating_changes = [change for change in rating_changes
-                    if self.dlo <= change.ratingUpdateTimeSeconds < self.dhi]
+                          if self.dlo <= change.ratingUpdateTimeSeconds < self.dhi]
         return rating_changes

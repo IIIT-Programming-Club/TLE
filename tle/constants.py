@@ -14,7 +14,8 @@ CACHE_DB_FILE_PATH = os.path.join(DB_DIR, 'cache.db')
 FONTS_DIR = os.path.join(ASSETS_DIR, 'fonts')
 
 NOTO_SANS_CJK_BOLD_FONT_PATH = os.path.join(FONTS_DIR, 'NotoSansCJK-Bold.ttc')
-NOTO_SANS_CJK_REGULAR_FONT_PATH = os.path.join(FONTS_DIR, 'NotoSansCJK-Regular.ttc')
+NOTO_SANS_CJK_REGULAR_FONT_PATH = os.path.join(
+    FONTS_DIR, 'NotoSansCJK-Regular.ttc')
 
 CONTEST_WRITERS_JSON_FILE_PATH = os.path.join(MISC_DIR, 'contest_writers.json')
 

@@ -98,7 +98,8 @@ class CacheDbConn:
         query = ('INSERT OR REPLACE INTO problem '
                  '(contest_id, problemset_name, [index], name, type, points, rating, tags) '
                  'VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
-        rc = self.conn.executemany(query, list(map(self._squish_tags, problems))).rowcount
+        rc = self.conn.executemany(query, list(
+            map(self._squish_tags, problems))).rowcount
         self.conn.commit()
         return rc
 
@@ -180,7 +181,8 @@ class CacheDbConn:
         query = ('INSERT OR REPLACE INTO problem2 '
                  '(contest_id, problemset_name, [index], name, type, points, rating, tags) '
                  'VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
-        rc = self.conn.executemany(query, list(map(self._squish_tags, problemset))).rowcount
+        rc = self.conn.executemany(query, list(
+            map(self._squish_tags, problemset))).rowcount
         self.conn.commit()
         return rc
 

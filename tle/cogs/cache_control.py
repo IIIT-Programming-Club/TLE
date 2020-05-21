@@ -86,7 +86,8 @@ class CacheControl(commands.Cog):
     async def cog_command_error(self, ctx, error):
         if isinstance(error, commands.CommandInvokeError):
             error = error.__cause__
-        lines = traceback.format_exception(type(error), error, error.__traceback__)
+        lines = traceback.format_exception(
+            type(error), error, error.__traceback__)
         msg = '\n'.join(lines)
         discord_msg_char_limit = 2000
         char_limit = discord_msg_char_limit - 2 * len('```')

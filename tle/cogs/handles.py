@@ -1,3 +1,18 @@
+from PIL import Image, ImageFont, ImageDraw
+from tle import constants
+from tle.util import db
+from tle.util import tasks
+from tle.util import table
+from tle.util import paginator
+from tle.util import events
+from tle.util import discord_common
+from tle.util import codeforces_common as cf_common
+from tle.util import codeforces_api as cf
+from tle.util import cache_system2
+from discord.ext import commands
+import random
+import discord
+from gi.repository import Pango, PangoCairo
 import io
 import asyncio
 import contextlib
@@ -10,24 +25,7 @@ import time
 import gi
 gi.require_version('Pango', '1.0')
 gi.require_version('PangoCairo', '1.0')
-from gi.repository import Pango, PangoCairo
 
-import discord
-import random
-from discord.ext import commands
-
-from tle.util import cache_system2
-from tle.util import codeforces_api as cf
-from tle.util import codeforces_common as cf_common
-from tle.util import discord_common
-from tle.util import events
-from tle.util import paginator
-from tle.util import table
-from tle.util import tasks
-from tle.util import db
-from tle import constants
-
-from PIL import Image, ImageFont, ImageDraw
 
 _HANDLES_PER_PAGE = 15
 _NAME_MAX_LEN = 20
@@ -68,6 +66,7 @@ def rating_to_color(rating):
         return ORANGE
     return RED
 
+
 FONTS = [
     'Noto Sans',
     'Noto Sans CJK JP',
@@ -76,6 +75,7 @@ FONTS = [
     'Noto Sans CJK HK',
     'Noto Sans CJK KR',
 ]
+
 
 def get_gudgitters_image(rankings):
     """return PIL image for rankings"""
@@ -103,7 +103,8 @@ def get_gudgitters_image(rankings):
     context.rectangle(0, 0, WIDTH, HEIGHT)
     context.fill()
     layout = PangoCairo.create_layout(context)
-    layout.set_font_description(Pango.font_description_from_string(','.join(FONTS) + ' 20'))
+    layout.set_font_description(
+        Pango.font_description_from_string(','.join(FONTS) + ' 20'))
     layout.set_ellipsize(Pango.EllipsizeMode.END)
 
     def draw_bg(y, color_index):
@@ -126,7 +127,8 @@ def get_gudgitters_image(rankings):
             text = html.escape(text)
             if bold:
                 text = f'<b>{text}</b>'
-            layout.set_width((width - COLUMN_MARGIN)*1000) # pixel = 1000 pango units
+            # pixel = 1000 pango units
+            layout.set_width((width - COLUMN_MARGIN)*1000)
             layout.set_markup(text, -1)
             PangoCairo.show_layout(context, layout)
             context.rel_move_to(width, 0)
@@ -146,7 +148,7 @@ def get_gudgitters_image(rankings):
 
     for i, (pos, name, handle, rating) in enumerate(rankings):
         color = rating_to_color(rating)
-        draw_bg(y, i%2)
+        draw_bg(y, i % 2)
         draw_row(str(pos), name, handle, str(rating), color, y)
         if rating != 'N/A' and rating >= 3000:  # nutella
             draw_row('', name[0], handle[0], '', BLACK, y)
@@ -157,6 +159,7 @@ def get_gudgitters_image(rankings):
     image_data.seek(0)
     discord_file = discord.File(image_data, filename='gudgitters.png')
     return discord_file
+
 
 def get_prettyhandles_image(rows, font):
     """return PIL image for rankings"""
@@ -196,7 +199,8 @@ def get_prettyhandles_image(rows, font):
         name = _trim(name)
         handle = _trim(handle)
         color = rating_to_color(rating)
-        draw_row(str(pos), name, handle, str(rating) if rating else 'N/A', color, y)
+        draw_row(str(pos), name, handle, str(rating)
+                 if rating else 'N/A', color, y)
         if rating and rating >= 3000:  # nutella
             nutella_x = START_X + WIDTH_RANK
             draw.text((nutella_x, y), name[0], fill=BLACK, font=font)
@@ -240,7 +244,8 @@ def _make_pages(users, title):
                 name = name[:_NAME_MAX_LEN - 1] + '…'
             rank = cf.rating2rank(rating)
             rating_str = 'N/A' if rating is None else str(rating)
-            t += table.Data(i + done, name, handle, f'{rating_str} ({rank.title_abbr})')
+            t += table.Data(i + done, name, handle,
+                            f'{rating_str} ({rank.title_abbr})')
         table_str = '```\n'+str(t)+'\n```'
         embed = discord_common.cf_color_embed(description=table_str)
         pages.append((title, embed))
@@ -252,7 +257,8 @@ class Handles(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.logger = logging.getLogger(self.__class__.__name__)
-        self.font = ImageFont.truetype(constants.NOTO_SANS_CJK_BOLD_FONT_PATH, size=26) # font for ;handle pretty
+        self.font = ImageFont.truetype(
+            constants.NOTO_SANS_CJK_BOLD_FONT_PATH, size=26)  # font for ;handle pretty
 
     @commands.Cog.listener()
     async def on_ready(self):
@@ -269,7 +275,8 @@ class Handles(commands.Cog):
         # To set users inactive in case the bot was dead when they left.
         to_set_inactive = []
         for guild in self.bot.guilds:
-            user_id_handle_pairs = cf_common.user_db.get_handles_for_guild(guild.id)
+            user_id_handle_pairs = cf_common.user_db.get_handles_for_guild(
+                guild.id)
             to_set_inactive += [(guild.id, user_id) for user_id, _ in user_id_handle_pairs
                                 if guild.get_member(user_id) is None]
         cf_common.user_db.set_inactive(to_set_inactive)
@@ -289,7 +296,8 @@ class Handles(commands.Cog):
             channel = guild.get_channel(channel_id)
             if channel is not None:
                 with contextlib.suppress(HandleCogError):
-                    embed = self._make_rankup_embed(guild, contest, change_by_handle)
+                    embed = self._make_rankup_embed(
+                        guild, contest, change_by_handle)
                     await channel.send(embed=embed)
 
         await asyncio.gather(*(update_for_guild(guild) for guild in self.bot.guilds),
@@ -312,7 +320,8 @@ class Handles(commands.Cog):
             role_names_to_remove.discard(role_to_assign.name)
             if role_to_assign.name not in ['Newbie', 'Pupil', 'Specialist', 'Expert']:
                 role_names_to_remove.add('Purgatory')
-        to_remove = [role for role in member.roles if role.name in role_names_to_remove]
+        to_remove = [
+            role for role in member.roles if role.name in role_names_to_remove]
         if to_remove:
             await member.remove_roles(*to_remove, reason=reason)
         if role_to_assign is not None and role_to_assign not in member.roles:
@@ -331,15 +340,18 @@ class Handles(commands.Cog):
         try:
             cf_common.user_db.set_handle(member.id, ctx.guild.id, handle)
         except db.UniqueConstraintFailed:
-            raise HandleCogError(f'The handle `{handle}` is already associated with another user.')
+            raise HandleCogError(
+                f'The handle `{handle}` is already associated with another user.')
         cf_common.user_db.cache_cf_user(user)
 
         if user.rank == cf.UNRATED_RANK:
             role_to_assign = None
         else:
-            roles = [role for role in ctx.guild.roles if role.name == user.rank.title]
+            roles = [role for role in ctx.guild.roles if role.name ==
+                     user.rank.title]
             if not roles:
-                raise HandleCogError(f'Role for rank `{user.rank.title}` not present in the server')
+                raise HandleCogError(
+                    f'Role for rank `{user.rank.title}` not present in the server')
             role_to_assign = roles[0]
         await self.update_member_rank_role(member, role_to_assign,
                                            reason='New handle set for user')
@@ -356,7 +368,8 @@ class Handles(commands.Cog):
                                  'already set. Ask an Admin if you wish to change it')
 
         if cf_common.user_db.get_user_id(handle, ctx.guild.id):
-            raise HandleCogError(f'The handle `{handle}` is already associated with another user. Ask an Admin in case of an inconsistency.')
+            raise HandleCogError(
+                f'The handle `{handle}` is already associated with another user. Ask an Admin in case of an inconsistency.')
 
         if handle in cf_common.HandleIsVjudgeError.HANDLES:
             raise cf_common.HandleIsVjudgeError(handle)
@@ -382,7 +395,8 @@ class Handles(commands.Cog):
         """Show Codeforces handle of a user."""
         handle = cf_common.user_db.get_handle(member.id, ctx.guild.id)
         if not handle:
-            raise HandleCogError(f'Handle for {member.mention} not found in database')
+            raise HandleCogError(
+                f'Handle for {member.mention} not found in database')
         user = cf_common.user_db.fetch_cf_user(handle)
         embed = _make_profile_embed(member, user, mode='get')
         await ctx.send(embed=embed)
@@ -392,7 +406,8 @@ class Handles(commands.Cog):
         """Show Discord username of a cf handle."""
         user_id = cf_common.user_db.get_user_id(handle, ctx.guild.id)
         if not user_id:
-            raise HandleCogError(f'Discord username for `{handle}` not found in database')
+            raise HandleCogError(
+                f'Discord username for `{handle}` not found in database')
         user = cf_common.user_db.fetch_cf_user(handle)
         member = ctx.guild.get_member(int(user_id))
         embed = _make_profile_embed(member, user, mode='get')
@@ -404,10 +419,12 @@ class Handles(commands.Cog):
         """Remove Codeforces handle of a user."""
         rc = cf_common.user_db.remove_handle(member.id, ctx.guild.id)
         if not rc:
-            raise HandleCogError(f'Handle for {member.mention} not found in database')
+            raise HandleCogError(
+                f'Handle for {member.mention} not found in database')
         await self.update_member_rank_role(member, role_to_assign=None,
                                            reason='Handle removed for user')
-        embed = discord_common.embed_success(f'Removed handle for {member.mention}')
+        embed = discord_common.embed_success(
+            f'Removed handle for {member.mention}')
         await ctx.send(embed=embed)
 
     @commands.command(brief="Show gudgitters", aliases=["gitgudders"])
@@ -433,7 +450,8 @@ class Handles(commands.Cog):
                 break
 
         if not rankings:
-            raise HandleCogError('No one has completed a gitgud challenge, send ;gitgud to request and ;gotgud to mark it as complete')
+            raise HandleCogError(
+                'No one has completed a gitgud challenge, send ;gitgud to request and ;gotgud to mark it as complete')
         discord_file = get_gudgitters_image(rankings)
         await ctx.send(file=discord_file)
 
@@ -448,14 +466,17 @@ class Handles(commands.Cog):
         res = cf_common.user_db.get_cf_users_for_guild(ctx.guild.id)
         users = [(ctx.guild.get_member(user_id), cf_user.handle, cf_user.rating)
                  for user_id, cf_user in res if not countries or cf_user.country in countries]
-        users = [(member, handle, rating) for member, handle, rating in users if member is not None]
+        users = [(member, handle, rating)
+                 for member, handle, rating in users if member is not None]
         if not users:
             raise HandleCogError('No members with registered handles.')
 
-        users.sort(key=lambda x: (1 if x[2] is None else -x[2], x[1]))  # Sorting by (-rating, handle)
+        # Sorting by (-rating, handle)
+        users.sort(key=lambda x: (1 if x[2] is None else -x[2], x[1]))
         title = 'Handles of server members'
         if countries:
-            title += ' from ' + ', '.join(f'`{country}`' for country in countries)
+            title += ' from ' + \
+                ', '.join(f'`{country}`' for country in countries)
         pages = _make_pages(users, title)
         paginator.paginate(self.bot, ctx.channel, pages, wait_time=_PAGINATE_WAIT_TIME,
                            set_pagenum_footers=True)
@@ -465,7 +486,8 @@ class Handles(commands.Cog):
         """Show members of the server who have registered their handles and their Codeforces
         ratings, in color.
         """
-        user_id_cf_user_pairs = cf_common.user_db.get_cf_users_for_guild(ctx.guild.id)
+        user_id_cf_user_pairs = cf_common.user_db.get_cf_users_for_guild(
+            ctx.guild.id)
         user_id_cf_user_pairs.sort(key=lambda p: p[1].rating if p[1].rating is not None else -1,
                                    reverse=True)
         rows = []
@@ -477,13 +499,15 @@ class Handles(commands.Cog):
             idx = len(rows)
             if member == ctx.author:
                 author_idx = idx
-            rows.append((idx, member.display_name, cf_user.handle, cf_user.rating))
+            rows.append((idx, member.display_name,
+                         cf_user.handle, cf_user.rating))
 
         if not rows:
             raise HandleCogError('No members with registered handles.')
         max_page = math.ceil(len(rows) / _PRETTY_HANDLES_PER_PAGE) - 1
         if author_idx is None and page_no is None:
-            raise HandleCogError(f'Please specify a page number between 0 and {max_page}.')
+            raise HandleCogError(
+                f'Please specify a page number between 0 and {max_page}.')
 
         msg = None
         if page_no is not None:
@@ -500,7 +524,7 @@ class Handles(commands.Cog):
             msg = f'Showing neighbourhood of user `{ctx.author.display_name}`.'
             num_before = (_PRETTY_HANDLES_PER_PAGE - 1) // 2
             start_idx = max(0, author_idx - num_before)
-        rows_to_display = rows[start_idx : start_idx + _PRETTY_HANDLES_PER_PAGE]
+        rows_to_display = rows[start_idx: start_idx + _PRETTY_HANDLES_PER_PAGE]
         img = get_prettyhandles_image(rows_to_display, self.font)
         buffer = io.BytesIO()
         img.save(buffer, 'png')
@@ -512,8 +536,10 @@ class Handles(commands.Cog):
         required.
         """
         res = cf_common.user_db.get_handles_for_guild(guild.id)
-        member_handles = [(guild.get_member(int(user_id)), handle) for user_id, handle in res]
-        member_handles = [(member, handle) for member, handle in member_handles if member is not None]
+        member_handles = [(guild.get_member(int(user_id)), handle)
+                          for user_id, handle in res]
+        member_handles = [(member, handle) for member,
+                          handle in member_handles if member is not None]
         if not member_handles:
             raise HandleCogError('Handles not set for any user')
         members, handles = zip(*member_handles)
@@ -521,13 +547,16 @@ class Handles(commands.Cog):
         for user in users:
             cf_common.user_db.cache_cf_user(user)
 
-        required_roles = {user.rank.title for user in users if user.rank != cf.UNRATED_RANK}
-        rank2role = {role.name: role for role in guild.roles if role.name in required_roles}
+        required_roles = {
+            user.rank.title for user in users if user.rank != cf.UNRATED_RANK}
+        rank2role = {
+            role.name: role for role in guild.roles if role.name in required_roles}
         missing_roles = required_roles - rank2role.keys()
         if missing_roles:
             roles_str = ', '.join(f'`{role}`' for role in missing_roles)
             plural = 's' if len(missing_roles) > 1 else ''
-            raise HandleCogError(f'Role{plural} for rank{plural} {roles_str} not present in the server')
+            raise HandleCogError(
+                f'Role{plural} for rank{plural} {roles_str} not present in the server')
 
         for member, user in zip(members, users):
             role_to_assign = None if user.rank == cf.UNRATED_RANK else rank2role[user.rank.title]
@@ -539,9 +568,11 @@ class Handles(commands.Cog):
         """Make an embed containing a list of rank changes and top rating increases for the members
         of this guild.
         """
-        user_id_handle_pairs = cf_common.user_db.get_handles_for_guild(guild.id)
+        user_id_handle_pairs = cf_common.user_db.get_handles_for_guild(
+            guild.id)
         member_handle_pairs = [(guild.get_member(int(user_id)), handle)
                                for user_id, handle in user_id_handle_pairs]
+
         def ispurg(member):
             # TODO: temporary code, todo properly later
             return any(role.name == 'Purgatory' for role in member.roles)
@@ -553,7 +584,8 @@ class Handles(commands.Cog):
             raise HandleCogError(f'Contest `{contest.id} | {contest.name}` was not rated for any '
                                  'member of this server.')
 
-        member_change_pairs.sort(key=lambda pair: pair[1].newRating, reverse=True)
+        member_change_pairs.sort(
+            key=lambda pair: pair[1].newRating, reverse=True)
         rank_to_role = {role.name: role for role in guild.roles}
 
         def rating_to_displayable_rank(rating):
@@ -589,10 +621,12 @@ class Handles(commands.Cog):
             top_increases_str.append(increase_str)
 
         desc = '\n'.join(rank_changes_str) or 'No rank changes'
-        embed = discord_common.cf_color_embed(title=contest.name, url=contest.url, description=desc)
+        embed = discord_common.cf_color_embed(
+            title=contest.name, url=contest.url, description=desc)
         embed.set_author(name='Rank updates')
         embed.add_field(name='Top rating increases',
-                        value='\n'.join(top_increases_str) or 'Nobody got a positive delta :(',
+                        value='\n'.join(
+                            top_increases_str) or 'Nobody got a positive delta :(',
                         inline=False)
         return embed
 
@@ -628,7 +662,8 @@ class Handles(commands.Cog):
                 raise HandleCogError('Auto role update is already disabled.')
             await ctx.send(embed=discord_common.embed_success('Auto role updates disabled.'))
         else:
-            raise ValueError(f"arg must be 'on' or 'off', got '{arg}' instead.")
+            raise ValueError(
+                f"arg must be 'on' or 'off', got '{arg}' instead.")
 
     @roleupdate.command(brief='Publish a rank update for the given contest',
                         usage='here|off|contest_id')
@@ -647,22 +682,26 @@ class Handles(commands.Cog):
         elif arg == 'off':
             rc = cf_common.user_db.clear_rankup_channel(ctx.guild.id)
             if not rc:
-                raise HandleCogError('Rank update publishing is already disabled.')
+                raise HandleCogError(
+                    'Rank update publishing is already disabled.')
             await ctx.send(embed=discord_common.embed_success('Rank update publishing disabled.'))
         else:
             try:
                 contest_id = int(arg)
             except ValueError:
-                raise ValueError(f"arg must be 'here', 'off' or a contest ID, got '{arg}' instead.")
+                raise ValueError(
+                    f"arg must be 'here', 'off' or a contest ID, got '{arg}' instead.")
             await self._publish_now(ctx, contest_id)
 
     async def _publish_now(self, ctx, contest_id):
         try:
             contest = cf_common.cache2.contest_cache.get_contest(contest_id)
         except cache_system2.ContestNotFound as e:
-            raise HandleCogError(f'Contest with id `{e.contest_id}` not found.')
+            raise HandleCogError(
+                f'Contest with id `{e.contest_id}` not found.')
         if contest.phase != 'FINISHED':
-            raise HandleCogError(f'Contest `{contest_id} | {contest.name}` has not finished.')
+            raise HandleCogError(
+                f'Contest `{contest_id} | {contest.name}` has not finished.')
         try:
             changes = await cf.contest.ratingChanges(contest_id=contest_id)
         except cf.RatingChangesUnavailableError:
@@ -677,7 +716,8 @@ class Handles(commands.Cog):
     async def _generic_remind(self, ctx, action, role_name, what):
         roles = [role for role in ctx.guild.roles if role.name == role_name]
         if not roles:
-            raise HandleCogError(f'Role `{role_name}` not present in the server')
+            raise HandleCogError(
+                f'Role `{role_name}` not present in the server')
         role = roles[0]
         if action == 'give':
             if role in ctx.author.roles:

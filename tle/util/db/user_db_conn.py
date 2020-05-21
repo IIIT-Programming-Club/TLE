@@ -6,11 +6,13 @@ from discord.ext import commands
 
 from tle.util import codeforces_api as cf
 
+
 class Gitgud(IntEnum):
     GOTGUD = 0
     GITGUD = 1
     NOGUD = 2
     FORCED_NOGUD = 3
+
 
 class Duel(IntEnum):
     PENDING = 0
@@ -21,10 +23,12 @@ class Duel(IntEnum):
     COMPLETE = 5
     INVALID = 6
 
+
 class Winner(IntEnum):
     DRAW = 0
     CHALLENGER = 1
     CHALLENGEE = 2
+
 
 class DuelType(IntEnum):
     UNOFFICIAL = 0
@@ -81,7 +85,6 @@ class UserDbConn:
             'title_photo         TEXT'
             ')'
         )
-        # TODO: Make duel tables guild-aware.
         self.conn.execute('''
             CREATE TABLE IF NOT EXISTS duelist(
                 "user_id"	INTEGER PRIMARY KEY NOT NULL,
@@ -161,6 +164,13 @@ class UserDbConn:
             ')'
         )
 
+        # Tournament Tables
+        self.conn.execute('''
+            CREATE TABLE IF NOT EXISTS contestant (
+                "user_id"	INTEGER PRIMARY KEY NOT NULL
+            )
+        ''')
+
     def _insert_one(self, table: str, columns, values: tuple):
         n = len(values)
         query = '''
@@ -195,7 +205,8 @@ class UserDbConn:
             WHERE user_id = ? AND active_challenge_id IS NULL
         '''
         cur = self.conn.cursor()
-        cur.execute(query1, (user_id, issue_time, prob.name, prob.contestId, prob.index, delta))
+        cur.execute(query1, (user_id, issue_time, prob.name,
+                             prob.contestId, prob.index, delta))
         last_id, rc = cur.lastrowid, cur.rowcount
         if rc != 1:
             self.conn.rollback()
@@ -214,14 +225,16 @@ class UserDbConn:
             WHERE user_id = ?
         '''
         res = self.conn.execute(query1, (user_id,)).fetchone()
-        if res is None: return None
+        if res is None:
+            return None
         c_id, issue_time = res
         query2 = '''
             SELECT problem_name, contest_id, p_index, rating_delta FROM challenge
             WHERE id = ?
         '''
         res = self.conn.execute(query2, (c_id,)).fetchone()
-        if res is None: return None
+        if res is None:
+            return None
         return c_id, issue_time, res[0], res[1], res[2], res[3]
 
     def get_gudgitters(self):
@@ -484,7 +497,8 @@ class UserDbConn:
         query = f'''
             INSERT INTO duel (challenger, challengee, issue_time, problem_name, contest_id, p_index, status, type) VALUES (?, ?, ?, ?, ?, ?, {Duel.PENDING}, ?)
         '''
-        duelid = self.conn.execute(query, (challenger, challengee, issue_time, prob.name, prob.contestId, prob.index, dtype)).lastrowid
+        duelid = self.conn.execute(query, (challenger, challengee, issue_time,
+                                           prob.name, prob.contestId, prob.index, dtype)).lastrowid
         self.conn.commit()
         return duelid
 
@@ -522,7 +536,7 @@ class UserDbConn:
         self.conn.commit()
         return rc
 
-    def complete_duel(self, duelid, winner, finish_time, winner_id = -1, loser_id = -1, delta = 0, dtype = DuelType.OFFICIAL):
+    def complete_duel(self, duelid, winner, finish_time, winner_id=-1, loser_id=-1, delta=0, dtype=DuelType.OFFICIAL):
         query = f'''
             UPDATE duel SET status = {Duel.COMPLETE}, finish_time = ?, winner = ? WHERE id = ? AND status = {Duel.ONGOING}
         '''
@@ -649,6 +663,22 @@ class UserDbConn:
         '''
         return self.conn.execute(query).fetchall()
 
+    # Tournament database functions start
+    def register_contestant(self, userid):
+        query = '''
+            INSERT OR IGNORE INTO contestant (user_id)
+            VALUES (?)
+        '''
+        with self.conn:
+            return self.conn.execute(query, (userid,)).rowcount
+
+    def get_contestants(self):
+        query = '''
+            SELECT user_id, 0 FROM contestant
+        '''
+        return self.conn.execute(query).fetchall()
+    # Tournament database functions end
+
     def get_rankup_channel(self, guild_id):
         query = ('SELECT channel_id '
                  'FROM rankup '
@@ -690,7 +720,8 @@ class UserDbConn:
 
     def update_status(self, active_ids: list):
         # TODO: Deal with the whole status thing.
-        if not active_ids: return 0
+        if not active_ids:
+            return 0
         placeholders = ', '.join(['?'] * len(active_ids))
         inactive_query = '''
             UPDATE user_handle

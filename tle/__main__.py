@@ -54,11 +54,24 @@ def main():
 
     setup()
 
-    bot = commands.Bot(command_prefix=commands.when_mentioned_or(';'))
+    bot = commands.Bot(command_prefix=commands.when_mentioned_or('$'))
     cogs = [file.stem for file in Path('tle', 'cogs').glob('*.py')]
     for extension in cogs:
-        bot.load_extension(f'tle.cogs.{extension}')
+        if extension != "tournament":
+            bot.load_extension(f'tle.cogs.{extension}')
     logging.info(f'Cogs loaded: {", ".join(bot.cogs)}')
+
+    @bot.command(brief='Starts a tournament')
+    @commands.has_any_role('Admin', 'Moderator')
+    async def load_tour(ctx):
+        """Starts a new tournament"""
+        bot.load_extension(f'tle.cogs.tournament')
+
+    @bot.command(brief='Close the ongoing tournament')
+    @commands.has_any_role('Admin', 'Moderator')
+    async def unload_tour(ctx):
+        """Stops the ongoing tournament"""
+        bot.unload_extension(f'tle.cogs.tournament')
 
     def no_dm_check(ctx):
         if ctx.guild is None:
