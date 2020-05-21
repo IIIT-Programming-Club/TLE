@@ -3,6 +3,7 @@ import datetime
 import discord
 import asyncio
 import itertools
+import challonge
 
 from discord.ext import commands
 from collections import defaultdict, namedtuple
@@ -21,6 +22,9 @@ _DUEL_EXPIRY_TIME = 5 * 60
 _DUEL_RATING_DELTA = -400
 _DUEL_NO_DRAW_TIME = 10 * 60
 _ELO_CONSTANT = 60
+
+_USERNAME = 'Groverkss'
+_API = '2VRGzCAHkcflkjfeqiBBlc2nlFYYI8CGSOpf6Ydi'
 
 DuelRank = namedtuple(
     'Rank', 'low high title title_abbr color_graph color_embed')
@@ -87,12 +91,30 @@ def complete_duel(duelid, guild_id, win_status, winner, loser, finish_time, scor
     return embed
 
 
+async def create_tour(self, ctx, loop):
+    """Creates an instance of tournament at challonge"""
+    challonge_user = await challonge.get_user(_USERNAME, _API)
+    challonge_tour = await challonge_user.create_tournamen(name='test2', url='progclubtest2')
+
+    users = [(ctx.guild.get_member(user_id), user_id)
+             for user_id, aux in cf_common.user_db.get_contestants()]
+    users = [(member.display_name, user_id)
+             for member, user_id in users
+             if member is not None]
+
+    for d_name, user_id in users:
+        await challonge_tour.add_participant(d_name, misc=user_id)
+
+    await challonge_tour.start()
+
+
 class Tournament(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.converter = commands.MemberConverter()
         self.draw_offers = {}
 
+    # NO CHANGE
     @commands.group(brief='Tournament commands',
                     invoke_without_command=True)
     async def tour(self, ctx):
@@ -108,6 +130,12 @@ class Tournament(commands.Cog):
             raise DuelCogError(
                 'You are already a registered contestant')
         await ctx.send(f'Successfully registered you as a contestant.')
+
+    @tour.command(brief='Begin the tournament!!')
+    @commands.has_any_role('Admin', 'Moderator')
+    async def begin(self, ctx):
+        loop = asyncio.get_event_loop()
+        loop.run_until_complete(create_tour(self, ctx, loop))
 
     @tour.command(brief='Challenge to a duel')
     async def challenge(self, ctx, opponent: discord.Member, rating: int = None):
@@ -142,8 +170,7 @@ class Tournament(commands.Cog):
         suggested_rating = max(
             round(lowest_rating, -2) + _DUEL_RATING_DELTA, 500)
         rating = round(rating, -2) if rating else suggested_rating
-        unofficial = False
-        dtype = DuelType.UNOFFICIAL if unofficial else DuelType.OFFICIAL
+        dtype = DuelType.OFFICIAL
 
         solved = {
             sub.problem.name for subs in submissions for sub in subs if sub.verdict != 'COMPILATION_ERROR'}
@@ -465,7 +492,7 @@ class Tournament(commands.Cog):
         paginator.paginate(self.bot, ctx.channel, pages,
                            wait_time=5 * 60, set_pagenum_footers=True)
 
-    # DONE
+    # DONE + DB
     @tour.command(brief="Show registered contestants")
     async def registered(self, ctx):
         """Show the list of register contestants."""
