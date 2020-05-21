@@ -1,5 +1,19 @@
 [[package]]
 category = "main"
+description = "A python library to use the Challonge API"
+name = "achallonge"
+optional = false
+python-versions = "*"
+version = "1.8.0"
+
+[package.dependencies]
+aiohttp = "3.5.4"
+
+[package.extras]
+speed = ["cchardet", "aiodns"]
+
+[[package]]
+category = "main"
 description = "multi backend asyncio cache"
 name = "aiocache"
 optional = false
@@ -374,10 +388,14 @@ docs = ["sphinx", "jaraco.packaging (>=3.2)", "rst.linker (>=1.9)"]
 testing = ["pathlib2", "contextlib2", "unittest2"]
 
 [metadata]
-content-hash = "22dff3edf04d52967c8096aa187f89b38e9b0f360f837f863906387d7387b6a6"
+content-hash = "ed034d842ae99a197ab2ad12602ff0b4a2c5936e691ed8204db47ef819c9e8ef"
 python-versions = "^3.7"
 
 [metadata.files]
+achallonge = [
+    {file = "achallonge-1.8.0-py3-none-any.whl", hash = "sha256:58944d4989143f1d2a19549c83ac979b27aa1bc99607111efed5d6462a169261"},
+    {file = "achallonge-1.8.0.tar.gz", hash = "sha256:838e33ce92c057957d70326c8c4dc37be9c8e4ffc7baacdd1fe05b8c48d8c320"},
+]
 aiocache = [
     {file = "aiocache-0.11.1-py2.py3-none-any.whl", hash = "sha256:e55c7caaa5753794fd301c3a2e592737fa1d036db9f8d04ae154facdfb48a157"},
     {file = "aiocache-0.11.1.tar.gz", hash = "sha256:f2ebe0b05cec45782e7b5ea0bb74640f157dd4bb1028b4565364dda9fe33be7f"},
