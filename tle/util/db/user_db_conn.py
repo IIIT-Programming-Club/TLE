@@ -190,6 +190,19 @@ class UserDbConn:
             )
         ''')
         self.conn.execute('''
+            CREATE TABLE IF NOT EXISTS "match" (
+                "id"	INTEGER PRIMARY KEY AUTOINCREMENT,
+                "user_id"	TEXT NOT NULL,
+                "issue_time"	REAL NOT NULL,
+                "finish_time"	REAL,
+                "problem_name"	TEXT NOT NULL,
+                "contest_id"	INTEGER NOT NULL,
+                "p_index"	INTEGER NOT NULL,
+                "rating_delta"	INTEGER NOT NULL,
+                "status"	INTEGER NOT NULL
+            )
+        ''')
+        self.conn.execute('''
             CREATE TABLE IF NOT EXISTS tour_config(
                 "id"    INTEGER PRIMARY KEY,
                 "value"    INTEGER NOT NULL
@@ -740,7 +753,7 @@ class UserDbConn:
     def update_tour_index(self):
         "Updates current index of tournament"
         self.check_tour_exists()
-        query = f''' 
+        query = f'''
             UPDATE tour_config SET value = value + 1
             WHERE id = {ConfigType.INDEX}
         '''
@@ -787,6 +800,32 @@ class UserDbConn:
         self.conn.execute(query, (value,))
         self.conn.commit()
 
+    def check_tour_match(self, userid):
+        query = f'''
+            SELECT id FROM matches
+            WHERE (challengee = ? OR challenger = ?) AND (status == {Duel.ONGOING} OR status == {Duel.PENDING})
+        '''
+        return self.conn.execute(query, (userid, userid)).fetchone()
+
+    def create_match(self, challenger, challengee, issue_time, prob, dtype):
+        query = f'''
+            INSERT INTO matches (challenger, challengee, issue_time, problem_name, contest_id, p_index, status, type) VALUES (?, ?, ?, ?, ?, ?, {Duel.PENDING}, ?)
+        '''
+        duelid = self.conn.execute(query, (challenger, challengee, issue_time,
+                                           prob.name, prob.contestId, prob.index, dtype)).lastrowid
+        self.conn.commit()
+        return duelid
+
+    def cancel_match(self, duelid, status):
+        query = f'''
+            UPDATE matches SET status = ? WHERE id = ? AND status = {Duel.PENDING}
+        '''
+        rc = self.conn.execute(query, (status, duelid)).rowcount
+        if rc != 1:
+            self.conn.rollback()
+            return 0
+        self.conn.commit()
+        return rc
     # Tournament database functions end
 
     def get_rankup_channel(self, guild_id):
