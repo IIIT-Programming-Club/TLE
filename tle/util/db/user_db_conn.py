@@ -35,6 +35,11 @@ class DuelType(IntEnum):
     OFFICIAL = 1
 
 
+class ConfigType(IntEnum):
+    INDEX = 0
+    STATUS = 1
+
+
 class UserDbError(commands.CommandError):
     pass
 
@@ -170,6 +175,26 @@ class UserDbConn:
                 "user_id"	INTEGER PRIMARY KEY NOT NULL
             )
         ''')
+        self.conn.execute('''
+            CREATE TABLE IF NOT EXISTS matches(
+                "id"	INTEGER PRIMARY KEY AUTOINCREMENT,
+                "challenger"	INTEGER NOT NULL,
+                "challengee"	INTEGER NOT NULL,
+                "issue_time"	REAL NOT NULL,
+                "start_time"	REAL,
+                "finish_time"	REAL,
+                "problem_name"	TEXT,
+                "contest_id"	INTEGER,
+                "p_index"	INTEGER,
+                "status"	INTEGER
+            )
+        ''')
+        self.conn.execute('''
+            CREATE TABLE IF NOT EXISTS tour_config(
+                "id"    INTEGER PRIMARY KEY,
+                "value"    INTEGER NOT NULL
+            )
+        ''')
 
     def _insert_one(self, table: str, columns, values: tuple):
         n = len(values)
@@ -192,7 +217,8 @@ class UserDbConn:
     def new_challenge(self, user_id, issue_time, prob, delta):
         query1 = '''
             INSERT INTO challenge
-            (user_id, issue_time, problem_name, contest_id, p_index, rating_delta, status)
+            (user_id, issue_time, problem_name,
+             contest_id, p_index, rating_delta, status)
             VALUES
             (?, ?, ?, ?, ?, ?, 1)
         '''
@@ -677,6 +703,90 @@ class UserDbConn:
             SELECT user_id, 0 FROM contestant
         '''
         return self.conn.execute(query).fetchall()
+
+    def get_ongoing_matches(self):
+        query = f'''
+            SELECT start_time, problem_name, challenger, challengee FROM matches
+            WHERE status == {Duel.ONGOING} ORDER BY start_time DESC
+        '''
+        return self.conn.execute(query).fetchall()
+
+    def check_tour_exists(self):
+        """Checks if index value exists in config table
+            and creates if not present"""
+        query = f'''
+            SELECT value FROM tour_config
+            WHERE id == {ConfigType.INDEX}
+        '''
+
+        result = self.conn.execute(query).fetchone()
+        if result is None:
+            query = f'''
+                INSERT INTO tour_config (id, value)
+                VALUES ({ConfigType.INDEX}, 0)
+            '''
+            self.conn.execute(query)
+            self.conn.commit()
+
+    def get_tour_index(self):
+        """Returns index of current tournament"""
+        self.check_tour_exists()
+        query = f'''
+            SELECT value FROM tour_config
+            WHERE id == {ConfigType.INDEX}
+        '''
+        return self.conn.execute(query).fetchone()[0]
+
+    def update_tour_index(self):
+        "Updates current index of tournament"
+        self.check_tour_exists()
+        query = f''' 
+            UPDATE tour_config SET value = value + 1
+            WHERE id = {ConfigType.INDEX}
+        '''
+        self.conn.execute(query)
+        self.conn.commit()
+
+    def check_status_exists(self):
+        """Checks if database contains status config
+            and creates one if does not"""
+        query = f'''
+            SELECT value FROM tour_config
+            WHERE id = {ConfigType.STATUS}
+        '''
+
+        result = self.conn.execute(query).fetchone()
+        if result is None:
+            query = f'''
+                INSERT INTO tour_config (id, value)
+                VALUES ({ConfigType.STATUS}, 0)
+            '''
+            self.conn.execute(query)
+            self.conn.commit()
+
+    def get_tour_status(self):
+        self.check_status_exists()
+        """Checks if tournament is ongoing or not"""
+        query = f'''
+            SELECT value FROM tour_config
+            WHERE id == {ConfigType.STATUS}
+        '''
+        return self.conn.execute(query).fetchone()[0]
+
+    def update_tour_status(self, value):
+        self.check_status_exists()
+        """Updates tournament status
+            0 -> False
+            1 -> True"""
+
+        query = f'''
+            UPDATE tour_config SET value = ?
+            WHERE id = {ConfigType.STATUS}
+        '''
+
+        self.conn.execute(query, (value,))
+        self.conn.commit()
+
     # Tournament database functions end
 
     def get_rankup_channel(self, guild_id):
@@ -726,12 +836,12 @@ class UserDbConn:
         inactive_query = '''
             UPDATE user_handle
             SET active = 0
-            WHERE user_id NOT IN ({})
+            WHERE user_id NOT IN({})
         '''.format(placeholders)
         active_query = '''
             UPDATE user_handle
             SET active = 1
-            WHERE user_id IN ({})
+            WHERE user_id IN({})
         '''.format(placeholders)
         self.conn.execute(inactive_query, active_ids)
         rc = self.conn.execute(active_query, active_ids).rowcount

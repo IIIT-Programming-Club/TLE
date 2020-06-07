@@ -4,6 +4,8 @@ import discord
 import asyncio
 import itertools
 import challonge
+import urllib
+import cairosvg
 
 from discord.ext import commands
 from collections import defaultdict, namedtuple
@@ -25,6 +27,8 @@ _ELO_CONSTANT = 60
 
 _USERNAME = 'Groverkss'
 _API = '2VRGzCAHkcflkjfeqiBBlc2nlFYYI8CGSOpf6Ydi'
+
+curr_tour = None
 
 DuelRank = namedtuple(
     'Rank', 'low high title title_abbr color_graph color_embed')
@@ -91,10 +95,24 @@ def complete_duel(duelid, guild_id, win_status, winner, loser, finish_time, scor
     return embed
 
 
-async def create_tour(self, ctx, loop):
+async def get_tour(index):
+    """Get the current tournament if it is not already taken"""
+
+    global curr_tour
+    status = cf_common.user_db.get_tour_status()
+
+    if status is 1 and curr_tour is None:
+        challonge_user = await challonge.get_user(_USERNAME, _API)
+        curr_tour = await challonge_user.get_tournament(url=f'progclub{index}')
+
+
+async def create_tour(ctx, index):
     """Creates an instance of tournament at challonge"""
+    global curr_tour
+
     challonge_user = await challonge.get_user(_USERNAME, _API)
-    challonge_tour = await challonge_user.create_tournamen(name='test2', url='progclubtest2')
+    challonge_tour = await challonge_user.create_tournament(name=f'club{index}', url=f'progclub{index}')
+    curr_tour = challonge_tour
 
     users = [(ctx.guild.get_member(user_id), user_id)
              for user_id, aux in cf_common.user_db.get_contestants()]
@@ -108,38 +126,72 @@ async def create_tour(self, ctx, loop):
     await challonge_tour.start()
 
 
+async def destroy_tour(index):
+    """Destroys the current tournament"""
+    global curr_tour
+    curr_tour = None
+
+
 class Tournament(commands.Cog):
     def __init__(self, bot):
+        global curr_tour
+
         self.bot = bot
         self.converter = commands.MemberConverter()
         self.draw_offers = {}
 
-    # NO CHANGE
-    @commands.group(brief='Tournament commands',
-                    invoke_without_command=True)
+    @ commands.group(brief='Tournament commands',
+                     invoke_without_command=True)
     async def tour(self, ctx):
         """Group for commands pertaining to Tournaments"""
         await ctx.send_help(ctx.command)
 
-    # DONE + DB
-    @tour.command(brief='Register yourself for the tournament')
+    @ tour.command(brief='Register yourself for the tournament')
     async def register(self, ctx):
         """Register yourself for the tournament"""
         rc = cf_common.user_db.register_contestant(ctx.author.id)
         if rc == 0:
             raise DuelCogError(
                 'You are already a registered contestant')
-        await ctx.send(f'Successfully registered you as a contestant.')
+        await ctx.send(f'Successfully registered {ctx.author.mention} as a contestant.')
 
     @tour.command(brief='Begin the tournament!!')
     @commands.has_any_role('Admin', 'Moderator')
     async def begin(self, ctx):
-        loop = asyncio.get_event_loop()
-        loop.run_until_complete(create_tour(self, ctx, loop))
+        """Starts the tournament"""
+        status = cf_common.user_db.get_tour_status()
+        if status is 1:
+            raise DuelCogError(f'A tournament is already going on!')
+
+        cf_common.user_db.update_tour_status(1)
+        index = cf_common.user_db.get_tour_index()
+        await create_tour(ctx, index)
+
+    @tour.command(brief='Stop the tournament')
+    @commands.has_any_role('Admin', 'Moderator')
+    async def destroy(self, ctx):
+        """Destroys the current tournament"""
+        status = cf_common.user_db.get_tour_status()
+        if status is 0:
+            raise DuelCogError(f'Tournament is not going on :/')
+        index = cf_common.user_db.get_tour_index()
+        await destroy_tour(index)
+        cf_common.user_db.update_tour_status(0)
+        cf_common.user_db.update_tour_index()
+
+    @tour.command(brief='Sends the current standings of the current tournament')
+    async def standings(self, ctx):
+        """Gets the ranklist of the tournament"""
+        status = cf_common.user_db.get_tour_status()
+        if status is 0:
+            raise DuelCogError(f'Tournament is not going on :/')
+        index = cf_common.user_db.get_tour_index()
+        await get_tour(index)
+        await ctx.send(f'View the ranklist at -> https://challonge.com/progclub{index}.svg')
 
     @tour.command(brief='Challenge to a duel')
     async def challenge(self, ctx, opponent: discord.Member, rating: int = None):
-        """Challenge another server member to a duel. Problem difficulty will be the lesser of duelist ratings minus 400. You can alternatively specify a lower rating. The challenge expires if ignored for 5 minutes."""
+        """Challenge another server member to a duel. Only works if you have a pending challenge against the other server member in the ongoing tournament. Specify a rating agreed by both as a paramter"""
         challenger_id = ctx.author.id
         challengee_id = opponent.id
 
@@ -149,15 +201,19 @@ class Tournament(commands.Cog):
             userid, ctx.guild.id) for userid in userids]
         submissions = [await cf.user.status(handle=handle) for handle in handles]
 
-        if not cf_common.user_db.is_duelist(challenger_id):
+        global curr_tour
+        req_match = None
+        matches = await curr_tour.get_matches()
+        for match in matches:
+            if match.player1.misc is challenger_id or match.player2.misc is challengee_id:
+                req_match = match
+
+        if req_match is None:
             raise DuelCogError(
-                f'{ctx.author.mention}, you are not a registered duelist!')
-        if not cf_common.user_db.is_duelist(challengee_id):
+                f'{ctx.author.mention}, You have lost :(!')
+        if req_match.player1 is None or req_match.player2 is None:
             raise DuelCogError(
-                f'{opponent.display_name} is not a registered duelist!')
-        if challenger_id == challengee_id:
-            raise DuelCogError(
-                f'{ctx.author.mention}, you cannot challenge yourself!')
+                f'{ctx.author.mention}, Your opponent has not finished their match yet')
         if cf_common.user_db.check_duel_challenge(challenger_id):
             raise DuelCogError(
                 f'{ctx.author.mention}, you are currently in a duel!')
@@ -201,6 +257,8 @@ class Tournament(commands.Cog):
         issue_time = datetime.datetime.now().timestamp()
         duelid = cf_common.user_db.create_duel(
             challenger_id, challengee_id, issue_time, problem, dtype)
+
+        unofficial = False
 
         ostr = 'an **unofficial**' if unofficial else 'a'
         await ctx.send(f'{ctx.author.mention} is challenging {opponent.mention} to {ostr} {rstr}duel!')
@@ -348,53 +406,6 @@ class Tournament(commands.Cog):
                               offerer, ctx.author, now, 0.5, dtype)
         await ctx.send(f'{ctx.author.mention} accepted draw offer by {offerer.mention}.', embed=embed)
 
-    @tour.command(brief='Show duelist profile')
-    async def profile(self, ctx, member: discord.Member = None):
-        member = member or ctx.author
-        if not cf_common.user_db.is_duelist(member.id):
-            raise DuelCogError(
-                f'{member.display_name} is not a registered duelist.')
-
-        user = get_cf_user(member.id, ctx.guild.id)
-        rating = cf_common.user_db.get_duel_rating(member.id)
-        desc = f'Duelist profile of {rating2rank(rating).title} {member.mention} aka **[{user.handle}]({user.url})**'
-        embed = discord.Embed(
-            description=desc, color=rating2rank(rating).color_embed)
-        embed.add_field(name='Rating', value=rating, inline=True)
-
-        wins = cf_common.user_db.get_duel_wins(member.id)
-        num_wins = len(wins)
-        embed.add_field(name='Wins', value=num_wins, inline=True)
-        num_losses = cf_common.user_db.get_num_duel_losses(member.id)
-        embed.add_field(name='Losses', value=num_losses, inline=True)
-        num_draws = cf_common.user_db.get_num_duel_draws(member.id)
-        embed.add_field(name='Draws', value=num_draws, inline=True)
-        num_declined = cf_common.user_db.get_num_duel_declined(member.id)
-        embed.add_field(name='Declined', value=num_declined, inline=True)
-        num_rdeclined = cf_common.user_db.get_num_duel_rdeclined(member.id)
-        embed.add_field(name='Got declined', value=num_rdeclined, inline=True)
-
-        def duel_to_string(duel):
-            start_time, finish_time, problem_name, challenger, challengee = duel
-            duel_time = cf_common.pretty_time_format(
-                finish_time - start_time, shorten=True, always_seconds=True)
-            when = cf_common.days_ago(start_time)
-            loser_id = challenger if member.id != challenger else challengee
-            loser = get_cf_user(loser_id, ctx.guild.id)
-            problem = cf_common.cache2.problem_cache.problem_by_name[problem_name]
-            return f'**[{problem.name}]({problem.url})** [{problem.rating}] versus [{loser.handle}]({loser.url}) {when} in {duel_time}'
-
-        if wins:
-            # sort by finish_time - start_time
-            wins.sort(key=lambda duel: duel[1] - duel[0])
-            embed.add_field(name='Fastest win',
-                            value=duel_to_string(wins[0]), inline=False)
-            embed.add_field(name='Slowest win',
-                            value=duel_to_string(wins[-1]), inline=False)
-
-        embed.set_thumbnail(url=f'https:{user.titlePhoto}')
-        await ctx.send(embed=embed)
-
     def _paginate_duels(self, data, message, guild_id, show_id):
         def make_line(entry):
             duelid, start_time, finish_time, name, challenger, challengee, winner = entry
@@ -424,48 +435,7 @@ class Tournament(commands.Cog):
 
         return [make_page(chunk) for chunk in paginator.chunkify(data, 7)]
 
-    @tour.command(brief='Print head to head dueling history',
-                  aliases=['versushistory'])
-    async def vshistory(self, ctx, member1: discord.Member = None, member2: discord.Member = None):
-        if not member1:
-            raise DuelCogError(
-                f'You need to specify one or two discord members.')
-
-        member2 = member2 or ctx.author
-        data = cf_common.user_db.get_pair_duels(member1.id, member2.id)
-        w, l, d = 0, 0, 0
-        for _, _, _, _, challenger, challengee, winner in data:
-            if winner != Winner.DRAW:
-                winnerid = challenger if winner == Winner.CHALLENGER else challengee
-                if winnerid == member1.id:
-                    w += 1
-                else:
-                    l += 1
-            else:
-                d += 1
-        pages = self._paginate_duels(
-            data, f'{member1.display_name} ({w}/{d}/{l}) {member2.display_name}', ctx.guild.id, False)
-        paginator.paginate(self.bot, ctx.channel, pages,
-                           wait_time=5 * 60, set_pagenum_footers=True)
-
-    @tour.command(brief='Print user dueling history')
-    async def history(self, ctx, member: discord.Member = None):
-        member = member or ctx.author
-        data = cf_common.user_db.get_duels(member.id)
-        pages = self._paginate_duels(
-            data, f'dueling history of {member.display_name}', ctx.guild.id, False)
-        paginator.paginate(self.bot, ctx.channel, pages,
-                           wait_time=5 * 60, set_pagenum_footers=True)
-
-    @tour.command(brief='Print recent duels')
-    async def recent(self, ctx):
-        data = cf_common.user_db.get_recent_duels()
-        pages = self._paginate_duels(
-            data, 'list of recent duels', ctx.guild.id, True)
-        paginator.paginate(self.bot, ctx.channel, pages,
-                           wait_time=5 * 60, set_pagenum_footers=True)
-
-    @tour.command(brief='Print list of ongoing duels')
+    @tour.command(brief='Print list of ongoing matches in the tournament')
     async def ongoing(self, ctx, member: discord.Member = None):
         def make_line(entry):
             start_time, name, challenger, challengee = entry
@@ -478,22 +448,58 @@ class Tournament(commands.Cog):
             return f'[{challenger.handle}]({challenger.url}) vs [{challengee.handle}]({challengee.url}): [{name}]({problem.url}) [{problem.rating}] {when}'
 
         def make_page(chunk):
-            message = f'List of ongoing duels:'
+            message = f'List of ongoing matches:'
             log_str = '\n'.join(make_line(entry) for entry in chunk)
             embed = discord_common.cf_color_embed(description=log_str)
             return message, embed
 
         member = member or ctx.author
-        data = cf_common.user_db.get_ongoing_duels()
+        data = cf_common.user_db.get_ongoing_matches()
         if not data:
-            raise DuelCogError('There are no ongoing duels.')
+            raise DuelCogError('There are no ongoing matches.')
+
+        pages = [make_page(chunk) for chunk in paginator.chunkify(data, 7)]
+        paginator.paginate(self.bot, ctx.channel, pages,
+                           wait_time=5 * 60, set_pagenum_footers=True)
+
+    @tour.command(brief='Prints list of pending matches in the tournament')
+    async def pending(self, ctx, member: discord.Member = None):
+
+        def make_line(entry):
+            challenger, challengee = entry
+            challenger = get_cf_user(challenger, ctx.guild.id)
+            challengee = get_cf_user(challengee, ctx.guild.id)
+            return f'[{challenger.handle}]({challenger.url}) vs [{challengee.handle}]({challengee.url})'
+
+        def make_page(chunk):
+            message = f'List of pending matches:'
+            log_str = '\n'.join(make_line(entry) for entry in chunk)
+            embed = discord_common.cf_color_embed(description=log_str)
+            return message, embed
+
+        status = cf_common.user_db.get_tour_status()
+        if status is 0:
+            raise DuelCogError(f'Tournament is not going on :/')
+        global curr_tour
+        index = cf_common.user_db.get_tour_index()
+        await get_tour(index)
+        matches = await curr_tour.get_matches(force_update=True)
+        data = []
+        for match in matches:
+            if match.state == 'open':
+                player1 = await curr_tour.get_participant(match.player1_id)
+                player2 = await curr_tour.get_participant(match.player2_id)
+                data.append((player1.misc, player2.misc))
+
+        if not data:
+            raise DuelCogError('There are no pending matches.')
 
         pages = [make_page(chunk) for chunk in paginator.chunkify(data, 7)]
         paginator.paginate(self.bot, ctx.channel, pages,
                            wait_time=5 * 60, set_pagenum_footers=True)
 
     # DONE + DB
-    @tour.command(brief="Show registered contestants")
+    @ tour.command(brief="Show registered contestants")
     async def registered(self, ctx):
         """Show the list of register contestants."""
         users = [(ctx.guild.get_member(user_id))
