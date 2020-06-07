@@ -112,6 +112,7 @@ pip-wheel-metadata/
 
 # data
 /data
+ranklist.png
 
 # logs
 /logs

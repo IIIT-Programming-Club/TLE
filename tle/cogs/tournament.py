@@ -111,7 +111,7 @@ async def create_tour(ctx, index):
     global curr_tour
 
     challonge_user = await challonge.get_user(_USERNAME, _API)
-    challonge_tour = await challonge_user.create_tournament(name=f'club{index}', url=f'progclub{index}')
+    challonge_tour = await challonge_user.create_tournament(name=f'IIIT Programing Club Dueling Tournament {index}', url=f'progclub{index}')
     curr_tour = challonge_tour
 
     users = [(ctx.guild.get_member(user_id), user_id)
@@ -130,6 +130,15 @@ async def destroy_tour(index):
     """Destroys the current tournament"""
     global curr_tour
     curr_tour = None
+
+
+async def get_ranklist(index):
+    url = f'https://challonge.com/progclub{index}.svg'
+    req = urllib.request.Request(
+        url, headers={'User-Agent': 'Mozilla/5.0'})
+    data = urllib.request.urlopen(req).read()
+    text = data.decode('utf-8')
+    img = cairosvg.svg2png(text, write_to='ranklist.png')
 
 
 class Tournament(commands.Cog):
@@ -187,7 +196,10 @@ class Tournament(commands.Cog):
             raise DuelCogError(f'Tournament is not going on :/')
         index = cf_common.user_db.get_tour_index()
         await get_tour(index)
-        await ctx.send(f'View the ranklist at -> https://challonge.com/progclub{index}.svg')
+        await get_ranklist(index)
+        with open('ranklist.png', "rb") as file:
+            img = discord.File(file, filename='ranklist.png')
+        await ctx.send(file=img)
 
     @tour.command(brief='Challenge to a duel')
     async def challenge(self, ctx, opponent: discord.Member, rating: int = None):
