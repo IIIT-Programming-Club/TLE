@@ -176,7 +176,7 @@ class UserDbConn:
             )
         ''')
         self.conn.execute('''
-            CREATE TABLE IF NOT EXISTS matches(
+            CREATE TABLE IF NOT EXISTS "matches" (
                 "id"	INTEGER PRIMARY KEY AUTOINCREMENT,
                 "challenger"	INTEGER NOT NULL,
                 "challengee"	INTEGER NOT NULL,
@@ -186,7 +186,9 @@ class UserDbConn:
                 "problem_name"	TEXT,
                 "contest_id"	INTEGER,
                 "p_index"	INTEGER,
-                "status"	INTEGER
+                "status"	INTEGER,
+                "winner"	INTEGER,
+                "type"		INTEGER
             )
         ''')
         self.conn.execute('''
@@ -826,6 +828,89 @@ class UserDbConn:
             return 0
         self.conn.commit()
         return rc
+
+    def get_match_problem_names(self, userid):
+        query = f'''
+            SELECT problem_name FROM matches WHERE (challengee = ? OR challenger = ?) AND (status == {Duel.COMPLETE} OR status == {Duel.INVALID})
+        '''
+        return self.conn.execute(query, (userid, userid)).fetchall()
+
+    def check_match_challenge(self, userid):
+        query = f'''
+            SELECT id FROM matches
+            WHERE (challengee = ? OR challenger = ?) AND (status == {Duel.ONGOING} OR status == {Duel.PENDING})
+        '''
+        return self.conn.execute(query, (userid, userid)).fetchone()
+
+    def check_match_accept(self, challengee):
+        query = f'''
+            SELECT id, challenger, problem_name FROM matches
+            WHERE challengee = ? AND status == {Duel.PENDING}
+        '''
+        return self.conn.execute(query, (challengee,)).fetchone()
+
+    def check_match_decline(self, challengee):
+        query = f'''
+            SELECT id, challenger FROM matches
+            WHERE challengee = ? AND status == {Duel.PENDING}
+        '''
+        return self.conn.execute(query, (challengee,)).fetchone()
+
+    def check_match_withdraw(self, challenger):
+        query = f'''
+            SELECT id, challengee FROM matches
+            WHERE challenger = ? AND status == {Duel.PENDING}
+        '''
+        return self.conn.execute(query, (challenger,)).fetchone()
+
+    def check_match_draw(self, userid):
+        query = f'''
+            SELECT id, challenger, challengee, start_time, type FROM matches
+            WHERE (challenger = ? OR challengee = ?) AND status == {Duel.ONGOING}
+        '''
+        return self.conn.execute(query, (userid, userid)).fetchone()
+
+    def check_match_complete(self, userid):
+        query = f'''
+            SELECT id, challenger, challengee, start_time, problem_name, contest_id, p_index, type FROM matches
+            WHERE (challenger = ? OR challengee = ?) AND status == {Duel.ONGOING}
+        '''
+        return self.conn.execute(query, (userid, userid)).fetchone()
+
+    def start_match(self, duelid, start_time):
+        query = f'''
+            UPDATE matches SET start_time = ?, status = {Duel.ONGOING}
+            WHERE id = ? AND status = {Duel.PENDING}
+        '''
+        rc = self.conn.execute(query, (start_time, duelid)).rowcount
+        if rc != 1:
+            self.conn.rollback()
+            return 0
+        self.conn.commit()
+        return rc
+
+    def invalidate_match(self, duelid):
+        query = f'''
+            UPDATE matches SET status = {Duel.INVALID} WHERE id = ? AND status = {Duel.ONGOING}
+        '''
+        rc = self.conn.execute(query, (duelid,)).rowcount
+        if rc != 1:
+            self.conn.rollback()
+            return 0
+        self.conn.commit()
+        return rc
+
+    def complete_match(self, duelid, winner, finish_time, winner_id=-1, loser_id=-1, delta=0, dtype=DuelType.OFFICIAL):
+        query = f'''
+            UPDATE matches SET status = {Duel.COMPLETE}, finish_time = ?, winner = ? WHERE id = ? AND status = {Duel.ONGOING}
+        '''
+        rc = self.conn.execute(query, (finish_time, winner, duelid)).rowcount
+        if rc != 1:
+            self.conn.rollback()
+            return 0
+
+        self.conn.commit()
+        return 1
     # Tournament database functions end
 
     def get_rankup_channel(self, guild_id):
