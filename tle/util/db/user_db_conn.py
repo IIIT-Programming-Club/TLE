@@ -6,11 +6,13 @@ from discord.ext import commands
 
 from tle.util import codeforces_api as cf
 
+
 class Gitgud(IntEnum):
     GOTGUD = 0
     GITGUD = 1
     NOGUD = 2
     FORCED_NOGUD = 3
+
 
 class Duel(IntEnum):
     PENDING = 0
@@ -21,14 +23,21 @@ class Duel(IntEnum):
     COMPLETE = 5
     INVALID = 6
 
+
 class Winner(IntEnum):
     DRAW = 0
     CHALLENGER = 1
     CHALLENGEE = 2
 
+
 class DuelType(IntEnum):
     UNOFFICIAL = 0
     OFFICIAL = 1
+
+
+class ConfigType(IntEnum):
+    INDEX = 0
+    STATUS = 1
 
 
 class UserDbError(commands.CommandError):
@@ -81,7 +90,6 @@ class UserDbConn:
             'title_photo         TEXT'
             ')'
         )
-        # TODO: Make duel tables guild-aware.
         self.conn.execute('''
             CREATE TABLE IF NOT EXISTS duelist(
                 "user_id"	INTEGER PRIMARY KEY NOT NULL,
@@ -161,6 +169,48 @@ class UserDbConn:
             ')'
         )
 
+        # Tournament Tables
+        self.conn.execute('''
+            CREATE TABLE IF NOT EXISTS contestant (
+                "user_id"	INTEGER PRIMARY KEY NOT NULL
+            )
+        ''')
+        self.conn.execute('''
+            CREATE TABLE IF NOT EXISTS "matches" (
+                "id"	INTEGER PRIMARY KEY AUTOINCREMENT,
+                "challenger"	INTEGER NOT NULL,
+                "challengee"	INTEGER NOT NULL,
+                "issue_time"	REAL NOT NULL,
+                "start_time"	REAL,
+                "finish_time"	REAL,
+                "problem_name"	TEXT,
+                "contest_id"	INTEGER,
+                "p_index"	INTEGER,
+                "status"	INTEGER,
+                "winner"	INTEGER,
+                "type"		INTEGER
+            )
+        ''')
+        self.conn.execute('''
+            CREATE TABLE IF NOT EXISTS "match" (
+                "id"	INTEGER PRIMARY KEY AUTOINCREMENT,
+                "user_id"	TEXT NOT NULL,
+                "issue_time"	REAL NOT NULL,
+                "finish_time"	REAL,
+                "problem_name"	TEXT NOT NULL,
+                "contest_id"	INTEGER NOT NULL,
+                "p_index"	INTEGER NOT NULL,
+                "rating_delta"	INTEGER NOT NULL,
+                "status"	INTEGER NOT NULL
+            )
+        ''')
+        self.conn.execute('''
+            CREATE TABLE IF NOT EXISTS tour_config(
+                "id"    INTEGER PRIMARY KEY,
+                "value"    INTEGER NOT NULL
+            )
+        ''')
+
     def _insert_one(self, table: str, columns, values: tuple):
         n = len(values)
         query = '''
@@ -182,7 +232,8 @@ class UserDbConn:
     def new_challenge(self, user_id, issue_time, prob, delta):
         query1 = '''
             INSERT INTO challenge
-            (user_id, issue_time, problem_name, contest_id, p_index, rating_delta, status)
+            (user_id, issue_time, problem_name,
+             contest_id, p_index, rating_delta, status)
             VALUES
             (?, ?, ?, ?, ?, ?, 1)
         '''
@@ -195,7 +246,8 @@ class UserDbConn:
             WHERE user_id = ? AND active_challenge_id IS NULL
         '''
         cur = self.conn.cursor()
-        cur.execute(query1, (user_id, issue_time, prob.name, prob.contestId, prob.index, delta))
+        cur.execute(query1, (user_id, issue_time, prob.name,
+                             prob.contestId, prob.index, delta))
         last_id, rc = cur.lastrowid, cur.rowcount
         if rc != 1:
             self.conn.rollback()
@@ -214,14 +266,16 @@ class UserDbConn:
             WHERE user_id = ?
         '''
         res = self.conn.execute(query1, (user_id,)).fetchone()
-        if res is None: return None
+        if res is None:
+            return None
         c_id, issue_time = res
         query2 = '''
             SELECT problem_name, contest_id, p_index, rating_delta FROM challenge
             WHERE id = ?
         '''
         res = self.conn.execute(query2, (c_id,)).fetchone()
-        if res is None: return None
+        if res is None:
+            return None
         return c_id, issue_time, res[0], res[1], res[2], res[3]
 
     def get_gudgitters(self):
@@ -484,7 +538,8 @@ class UserDbConn:
         query = f'''
             INSERT INTO duel (challenger, challengee, issue_time, problem_name, contest_id, p_index, status, type) VALUES (?, ?, ?, ?, ?, ?, {Duel.PENDING}, ?)
         '''
-        duelid = self.conn.execute(query, (challenger, challengee, issue_time, prob.name, prob.contestId, prob.index, dtype)).lastrowid
+        duelid = self.conn.execute(query, (challenger, challengee, issue_time,
+                                           prob.name, prob.contestId, prob.index, dtype)).lastrowid
         self.conn.commit()
         return duelid
 
@@ -522,7 +577,7 @@ class UserDbConn:
         self.conn.commit()
         return rc
 
-    def complete_duel(self, duelid, winner, finish_time, winner_id = -1, loser_id = -1, delta = 0, dtype = DuelType.OFFICIAL):
+    def complete_duel(self, duelid, winner, finish_time, winner_id=-1, loser_id=-1, delta=0, dtype=DuelType.OFFICIAL):
         query = f'''
             UPDATE duel SET status = {Duel.COMPLETE}, finish_time = ?, winner = ? WHERE id = ? AND status = {Duel.ONGOING}
         '''
@@ -649,6 +704,215 @@ class UserDbConn:
         '''
         return self.conn.execute(query).fetchall()
 
+    # Tournament database functions start
+    def register_contestant(self, userid):
+        query = '''
+            INSERT OR IGNORE INTO contestant (user_id)
+            VALUES (?)
+        '''
+        with self.conn:
+            return self.conn.execute(query, (userid,)).rowcount
+
+    def get_contestants(self):
+        query = '''
+            SELECT user_id, 0 FROM contestant
+        '''
+        return self.conn.execute(query).fetchall()
+
+    def get_ongoing_matches(self):
+        query = f'''
+            SELECT start_time, problem_name, challenger, challengee FROM matches
+            WHERE status == {Duel.ONGOING} ORDER BY start_time DESC
+        '''
+        return self.conn.execute(query).fetchall()
+
+    def check_tour_exists(self):
+        """Checks if index value exists in config table
+            and creates if not present"""
+        query = f'''
+            SELECT value FROM tour_config
+            WHERE id == {ConfigType.INDEX}
+        '''
+
+        result = self.conn.execute(query).fetchone()
+        if result is None:
+            query = f'''
+                INSERT INTO tour_config (id, value)
+                VALUES ({ConfigType.INDEX}, 0)
+            '''
+            self.conn.execute(query)
+            self.conn.commit()
+
+    def get_tour_index(self):
+        """Returns index of current tournament"""
+        self.check_tour_exists()
+        query = f'''
+            SELECT value FROM tour_config
+            WHERE id == {ConfigType.INDEX}
+        '''
+        return self.conn.execute(query).fetchone()[0]
+
+    def update_tour_index(self):
+        "Updates current index of tournament"
+        self.check_tour_exists()
+        query = f'''
+            UPDATE tour_config SET value = value + 1
+            WHERE id = {ConfigType.INDEX}
+        '''
+        self.conn.execute(query)
+        self.conn.commit()
+
+    def check_status_exists(self):
+        """Checks if database contains status config
+            and creates one if does not"""
+        query = f'''
+            SELECT value FROM tour_config
+            WHERE id = {ConfigType.STATUS}
+        '''
+
+        result = self.conn.execute(query).fetchone()
+        if result is None:
+            query = f'''
+                INSERT INTO tour_config (id, value)
+                VALUES ({ConfigType.STATUS}, 0)
+            '''
+            self.conn.execute(query)
+            self.conn.commit()
+
+    def get_tour_status(self):
+        self.check_status_exists()
+        """Checks if tournament is ongoing or not"""
+        query = f'''
+            SELECT value FROM tour_config
+            WHERE id == {ConfigType.STATUS}
+        '''
+        return self.conn.execute(query).fetchone()[0]
+
+    def update_tour_status(self, value):
+        self.check_status_exists()
+        """Updates tournament status
+            0 -> False
+            1 -> True"""
+
+        query = f'''
+            UPDATE tour_config SET value = ?
+            WHERE id = {ConfigType.STATUS}
+        '''
+
+        self.conn.execute(query, (value,))
+        self.conn.commit()
+
+    def check_tour_match(self, userid):
+        query = f'''
+            SELECT id FROM matches
+            WHERE (challengee = ? OR challenger = ?) AND (status == {Duel.ONGOING} OR status == {Duel.PENDING})
+        '''
+        return self.conn.execute(query, (userid, userid)).fetchone()
+
+    def create_match(self, challenger, challengee, issue_time, prob, dtype):
+        query = f'''
+            INSERT INTO matches (challenger, challengee, issue_time, problem_name, contest_id, p_index, status, type) VALUES (?, ?, ?, ?, ?, ?, {Duel.PENDING}, ?)
+        '''
+        duelid = self.conn.execute(query, (challenger, challengee, issue_time,
+                                           prob.name, prob.contestId, prob.index, dtype)).lastrowid
+        self.conn.commit()
+        return duelid
+
+    def cancel_match(self, duelid, status):
+        query = f'''
+            UPDATE matches SET status = ? WHERE id = ? AND status = {Duel.PENDING}
+        '''
+        rc = self.conn.execute(query, (status, duelid)).rowcount
+        if rc != 1:
+            self.conn.rollback()
+            return 0
+        self.conn.commit()
+        return rc
+
+    def get_match_problem_names(self, userid):
+        query = f'''
+            SELECT problem_name FROM matches WHERE (challengee = ? OR challenger = ?) AND (status == {Duel.COMPLETE} OR status == {Duel.INVALID})
+        '''
+        return self.conn.execute(query, (userid, userid)).fetchall()
+
+    def check_match_challenge(self, userid):
+        query = f'''
+            SELECT id FROM matches
+            WHERE (challengee = ? OR challenger = ?) AND (status == {Duel.ONGOING} OR status == {Duel.PENDING})
+        '''
+        return self.conn.execute(query, (userid, userid)).fetchone()
+
+    def check_match_accept(self, challengee):
+        query = f'''
+            SELECT id, challenger, problem_name FROM matches
+            WHERE challengee = ? AND status == {Duel.PENDING}
+        '''
+        return self.conn.execute(query, (challengee,)).fetchone()
+
+    def check_match_decline(self, challengee):
+        query = f'''
+            SELECT id, challenger FROM matches
+            WHERE challengee = ? AND status == {Duel.PENDING}
+        '''
+        return self.conn.execute(query, (challengee,)).fetchone()
+
+    def check_match_withdraw(self, challenger):
+        query = f'''
+            SELECT id, challengee FROM matches
+            WHERE challenger = ? AND status == {Duel.PENDING}
+        '''
+        return self.conn.execute(query, (challenger,)).fetchone()
+
+    def check_match_draw(self, userid):
+        query = f'''
+            SELECT id, challenger, challengee, start_time, type FROM matches
+            WHERE (challenger = ? OR challengee = ?) AND status == {Duel.ONGOING}
+        '''
+        return self.conn.execute(query, (userid, userid)).fetchone()
+
+    def check_match_complete(self, userid):
+        query = f'''
+            SELECT id, challenger, challengee, start_time, problem_name, contest_id, p_index, type FROM matches
+            WHERE (challenger = ? OR challengee = ?) AND status == {Duel.ONGOING}
+        '''
+        return self.conn.execute(query, (userid, userid)).fetchone()
+
+    def start_match(self, duelid, start_time):
+        query = f'''
+            UPDATE matches SET start_time = ?, status = {Duel.ONGOING}
+            WHERE id = ? AND status = {Duel.PENDING}
+        '''
+        rc = self.conn.execute(query, (start_time, duelid)).rowcount
+        if rc != 1:
+            self.conn.rollback()
+            return 0
+        self.conn.commit()
+        return rc
+
+    def invalidate_match(self, duelid):
+        query = f'''
+            UPDATE matches SET status = {Duel.INVALID} WHERE id = ? AND status = {Duel.ONGOING}
+        '''
+        rc = self.conn.execute(query, (duelid,)).rowcount
+        if rc != 1:
+            self.conn.rollback()
+            return 0
+        self.conn.commit()
+        return rc
+
+    def complete_match(self, duelid, winner, finish_time, winner_id=-1, loser_id=-1, delta=0, dtype=DuelType.OFFICIAL):
+        query = f'''
+            UPDATE matches SET status = {Duel.COMPLETE}, finish_time = ?, winner = ? WHERE id = ? AND status = {Duel.ONGOING}
+        '''
+        rc = self.conn.execute(query, (finish_time, winner, duelid)).rowcount
+        if rc != 1:
+            self.conn.rollback()
+            return 0
+
+        self.conn.commit()
+        return 1
+    # Tournament database functions end
+
     def get_rankup_channel(self, guild_id):
         query = ('SELECT channel_id '
                  'FROM rankup '
@@ -690,17 +954,18 @@ class UserDbConn:
 
     def update_status(self, active_ids: list):
         # TODO: Deal with the whole status thing.
-        if not active_ids: return 0
+        if not active_ids:
+            return 0
         placeholders = ', '.join(['?'] * len(active_ids))
         inactive_query = '''
             UPDATE user_handle
             SET active = 0
-            WHERE user_id NOT IN ({})
+            WHERE user_id NOT IN({})
         '''.format(placeholders)
         active_query = '''
             UPDATE user_handle
             SET active = 1
-            WHERE user_id IN ({})
+            WHERE user_id IN({})
         '''.format(placeholders)
         self.conn.execute(inactive_query, active_ids)
         rc = self.conn.execute(active_query, active_ids).rowcount
