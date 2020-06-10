@@ -111,6 +111,7 @@ pip-wheel-metadata/
 .vscode/
 
 # data
+/data
 ranklist.png
 
 # logs
