@@ -9,7 +9,7 @@ from tle.util import discord_common
 
 _STAR = '\N{WHITE MEDIUM STAR}'
 _STAR_ORANGE = 0xffaa10
-_STAR_THRESHOLD = 5
+_STAR_THRESHOLD = 1
 
 
 class StarboardCogError(commands.CommandError):
@@ -45,18 +45,22 @@ class Starboard(commands.Cog):
         starboard_channel_id = int(res[0])
         if payload.channel_id != starboard_channel_id:
             return
-        cf_common.user_db.remove_starboard_message(starboard_msg_id=payload.message_id)
-        self.logger.info(f'Removed message {payload.message_id} from starboard')
+        cf_common.user_db.remove_starboard_message(
+            starboard_msg_id=payload.message_id)
+        self.logger.info(
+            f'Removed message {payload.message_id} from starboard')
 
     @staticmethod
     def prepare_embed(message):
         # Adapted from https://github.com/Rapptz/RoboDanny/blob/rewrite/cogs/stars.py
         embed = discord.Embed(color=_STAR_ORANGE, timestamp=message.created_at)
         embed.add_field(name='Channel', value=message.channel.mention)
-        embed.add_field(name='Jump to', value=f'[Original]({message.jump_url})')
+        embed.add_field(
+            name='Jump to', value=f'[Original]({message.jump_url})')
 
         if message.content:
-            embed.add_field(name='Content', value=message.content, inline=False)
+            embed.add_field(
+                name='Content', value=message.content, inline=False)
 
         if message.embeds:
             data = message.embeds[0]
@@ -68,9 +72,11 @@ class Starboard(commands.Cog):
             if file.url.lower().endswith(('png', 'jpeg', 'jpg', 'gif', 'webp')):
                 embed.set_image(url=file.url)
             else:
-                embed.add_field(name='Attachment', value=f'[{file.filename}]({file.url})', inline=False)
+                embed.add_field(
+                    name='Attachment', value=f'[{file.filename}]({file.url})', inline=False)
 
-        embed.set_footer(text=str(message.author), icon_url=message.author.avatar_url)
+        embed.set_footer(text=str(message.author),
+                         icon_url=message.author.avatar_url)
         return embed
 
     async def check_and_add_to_starboard(self, starboard_channel_id, payload):
@@ -99,7 +105,8 @@ class Starboard(commands.Cog):
                 return
             embed = self.prepare_embed(message)
             starboard_message = await starboard_channel.send(embed=embed)
-            cf_common.user_db.add_starboard_message(message.id, starboard_message.id, guild.id)
+            cf_common.user_db.add_starboard_message(
+                message.id, starboard_message.id, guild.id)
             self.logger.info(f'Added message {message.id} to starboard')
 
     @commands.group(brief='Starboard commands',
@@ -132,7 +139,8 @@ class Starboard(commands.Cog):
     @commands.has_role('Admin')
     async def remove(self, ctx, original_message_id: int):
         """Remove a particular message from the starboard database."""
-        rc = cf_common.user_db.remove_starboard_message(original_msg_id=original_message_id)
+        rc = cf_common.user_db.remove_starboard_message(
+            original_msg_id=original_message_id)
         if rc:
             await ctx.send(embed=discord_common.embed_success('Successfully removed'))
         else:
