@@ -32,6 +32,22 @@ def cf_color_embed(**kwargs):
     return discord.Embed(**kwargs, color=random.choice(_CF_COLORS))
 
 
+"""
+This solution feels awkward. What about modifying and refactoring cf_color_embed instead?
+
+E.g.
+
+factor out the random.choice(_CF_COLORS) into random_cf_color()
+make the signature def cf_color_embed(*, color=None, **kwargs):
+add line color = color or random_cf_color(), add color=color in embed.
+"""
+
+
+def cf_color_embed_fixed(seed, **kwargs):
+    # seed is a random no in range(100)
+    return discord.Embed(**kwargs, color=_CF_COLORS[int(len(_CF_COLORS)*seed/100)])
+
+
 def attach_image(embed, img_file):
     embed.set_image(url=f'attachment://{img_file.filename}')
 
