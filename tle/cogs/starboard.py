@@ -36,6 +36,7 @@ class Starboard(commands.Cog):
         except StarboardCogError as e:
             self.logger.info(f'Failed to starboard: {e!r}')
 
+    # I have no idea why this works. If you do, please edit this comment with explanation
     @commands.Cog.listener()
     async def on_raw_reaction_remove(self, payload):
         if str(payload.emoji) != _STAR or payload.guild_id is None:
