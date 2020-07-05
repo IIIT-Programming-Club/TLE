@@ -36,7 +36,6 @@ class Starboard(commands.Cog):
         except StarboardCogError as e:
             self.logger.info(f'Failed to starboard: {e!r}')
 
-    # I have no idea why this works. If you do, please edit this comment with explanation
     @commands.Cog.listener()
     async def on_raw_reaction_remove(self, payload):
         if str(payload.emoji) != _STAR or payload.guild_id is None:
@@ -46,6 +45,12 @@ class Starboard(commands.Cog):
             return
         starboard_channel_id = int(res[0])
 
+        channel = self.bot.get_channel(payload.channel_id)
+        message = await channel.fetch_message(payload.message_id)
+
+        if message.author != payload.author:
+            return
+
         try:
             if cf_common.user_db.check_exists_starboard_message(payload.message_id):
                 starboard_message_id = cf_common.user_db.get_starboard_message_id(
@@ -54,10 +59,8 @@ class Starboard(commands.Cog):
                 starboard_channel = self.bot.get_channel(starboard_channel_id)
                 message_to_delete = await starboard_channel.fetch_message(
                     starboard_message_id)
-                reaction_count = sum(reaction.count for reaction in message_to_delete.reactions
-                                     if str(reaction) == _STAR)
-                if (reaction_count == 0):
-                    await message_to_delete.delete()
+
+                await message_to_delete.delete()
             else:
                 self.logger.info(f'Message does not exist in database')
         except StarboardCogError as e:
@@ -115,6 +118,10 @@ class Starboard(commands.Cog):
 
         channel = self.bot.get_channel(payload.channel_id)
         message = await channel.fetch_message(payload.message_id)
+
+        if message.author != payload.author:
+            return
+
         if (message.type != discord.MessageType.default or
                 len(message.content) == 0 and len(message.attachments) == 0):
             raise StarboardCogError('Cannot starboard this message')
