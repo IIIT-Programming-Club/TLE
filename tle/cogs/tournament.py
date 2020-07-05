@@ -26,7 +26,7 @@ _DUEL_NO_DRAW_TIME = 10 * 60
 _ELO_CONSTANT = 60
 
 _USERNAME = 'Groverkss'
-_API = '2VRGzCAHkcflkjfeqiBBlc2nlFYYI8CGSOpf6Ydi'
+_API = 'API'
 
 curr_tour = None
 
