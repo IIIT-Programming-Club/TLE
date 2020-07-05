@@ -48,7 +48,7 @@ class Starboard(commands.Cog):
         channel = self.bot.get_channel(payload.channel_id)
         message = await channel.fetch_message(payload.message_id)
 
-        if message.author.user_id != payload.user_id:
+        if message.author.id != payload.user_id:
             return
 
         try:
@@ -119,7 +119,7 @@ class Starboard(commands.Cog):
         channel = self.bot.get_channel(payload.channel_id)
         message = await channel.fetch_message(payload.message_id)
 
-        if message.author.user_id != payload.user_id:
+        if message.author.id != payload.user_id:
             return
 
         if (message.type != discord.MessageType.default or
