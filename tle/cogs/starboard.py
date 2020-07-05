@@ -8,6 +8,7 @@ from tle.util import codeforces_common as cf_common
 from tle.util import discord_common
 
 _STAR = '\N{WHITE MEDIUM STAR}'
+_SPARKLE = '\N{SPARKLES}'
 _STAR_ORANGE = 0xffaa10
 _STAR_THRESHOLD = 1
 
@@ -34,6 +35,28 @@ class Starboard(commands.Cog):
             await self.check_and_add_to_starboard(starboard_channel_id, payload)
         except StarboardCogError as e:
             self.logger.info(f'Failed to starboard: {e!r}')
+
+    @commands.Cog.listener()
+    async def on_raw_reaction_remove(self, payload):
+        if str(payload.emoji) != _STAR or payload.guild_id is None:
+            return
+        res = cf_common.user_db.get_starboard(payload.guild_id)
+        if res is None:
+            return
+        starboard_channel_id = int(res[0])
+        try:
+            if cf_common.user_db.check_exists_starboard_message(payload.message_id):
+                starboard_message_id = cf_common.user_db.get_starboard_message_id(
+                    payload.message_id)
+
+                starboard_channel = self.bot.get_channel(starboard_channel_id)
+                message_to_delete = await starboard_channel.fetch_message(
+                    starboard_message_id)
+                await message_to_delete.delete()
+            else:
+                self.logger.info(f'Message does not exist in database')
+        except StarboardCogError as e:
+            self.logger.info(f'Failed to delete message')
 
     @commands.Cog.listener()
     async def on_raw_message_delete(self, payload):

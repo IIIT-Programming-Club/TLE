@@ -472,6 +472,13 @@ class UserDbConn:
         res = self.conn.execute(query, (original_msg_id,)).fetchone()
         return res is not None
 
+    def get_starboard_message_id(self, original_msg_id):
+        query = ('SELECT * '
+                 'FROM starboard_message '
+                 'WHERE original_msg_id = ?')
+        res = self.conn.execute(query, (original_msg_id,)).fetchone()
+        return res[1]
+
     def remove_starboard_message(self, *, original_msg_id=None, starboard_msg_id=None):
         assert (original_msg_id is None) ^ (starboard_msg_id is None)
         if original_msg_id is not None:
