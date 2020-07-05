@@ -45,6 +45,7 @@ class Starboard(commands.Cog):
         if res is None:
             return
         starboard_channel_id = int(res[0])
+
         try:
             if cf_common.user_db.check_exists_starboard_message(payload.message_id):
                 starboard_message_id = cf_common.user_db.get_starboard_message_id(
@@ -53,7 +54,10 @@ class Starboard(commands.Cog):
                 starboard_channel = self.bot.get_channel(starboard_channel_id)
                 message_to_delete = await starboard_channel.fetch_message(
                     starboard_message_id)
-                await message_to_delete.delete()
+                reaction_count = sum(reaction.count for reaction in message_to_delete.reactions
+                                     if str(reaction) == _STAR)
+                if (reaction_count == 0):
+                    await message_to_delete.delete()
             else:
                 self.logger.info(f'Message does not exist in database')
         except StarboardCogError as e:
