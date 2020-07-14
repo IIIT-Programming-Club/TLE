@@ -42,27 +42,31 @@ class Codeforces(commands.Cog):
             raise CodeforcesCogError('Delta must be a multiple of 100.')
 
         if delta is not None and abs(delta) > _GITGUD_MAX_ABS_DELTA_VALUE:
-            raise CodeforcesCogError(f'Delta must range from -{_GITGUD_MAX_ABS_DELTA_VALUE} to {_GITGUD_MAX_ABS_DELTA_VALUE}.')
+            raise CodeforcesCogError(
+                f'Delta must range from -{_GITGUD_MAX_ABS_DELTA_VALUE} to {_GITGUD_MAX_ABS_DELTA_VALUE}.')
 
         user_id = ctx.message.author.id
         active = cf_common.user_db.check_challenge(user_id)
         if active is not None:
             _, _, name, contest_id, index, _ = active
             url = f'{cf.CONTEST_BASE_URL}{contest_id}/problem/{index}'
-            raise CodeforcesCogError(f'You have an active challenge {name} at {url}')
+            raise CodeforcesCogError(
+                f'You have an active challenge {name} at {url}')
 
     async def _gitgud(self, ctx, handle, problem, delta):
         # The caller of this function is responsible for calling `_validate_gitgud_status` first.
         user_id = ctx.author.id
 
         issue_time = datetime.datetime.now().timestamp()
-        rc = cf_common.user_db.new_challenge(user_id, issue_time, problem, delta)
+        rc = cf_common.user_db.new_challenge(
+            user_id, issue_time, problem, delta)
         if rc != 1:
             await ctx.send('Your challenge has already been added to the database!')
             return
 
         title = f'{problem.index}. {problem.name}'
-        desc = cf_common.cache2.contest_cache.get_contest(problem.contestId).name
+        desc = cf_common.cache2.contest_cache.get_contest(
+            problem.contestId).name
         embed = discord.Embed(title=title, url=problem.url, description=desc)
         embed.add_field(name='Rating', value=problem.rating)
         await ctx.send(f'Challenge problem for `{handle}`', embed=embed)
@@ -74,7 +78,7 @@ class Codeforces(commands.Cog):
         delta  | -300 | -200 | -100 |  0  | +100 | +200 | +300
         points |   2  |   3  |   5  |  8  |  12  |  17  |  23
         """
-        await self._validate_gitgud_status(ctx,delta=None)
+        await self._validate_gitgud_status(ctx, delta=None)
         handle, = await cf_common.resolve_handles(ctx, self.converter, ('!' + str(ctx.author),))
         user = cf_common.user_db.fetch_cf_user(handle)
         rating = round(user.effective_rating, -2)
@@ -126,7 +130,8 @@ class Codeforces(commands.Cog):
         upper = bounds[1] if len(bounds) > 1 else lower + 200
         problems = [prob for prob in cf_common.cache2.problem_cache.problems
                     if lower <= prob.rating and prob.name not in solved]
-        problems = [prob for prob in problems if not cf_common.is_contest_writer(prob.contestId, handle)]
+        problems = [prob for prob in problems if not cf_common.is_contest_writer(
+            prob.contestId, handle)]
         if tags:
             problems = [prob for prob in problems if prob.tag_matches(tags)]
         if not problems:
@@ -141,7 +146,8 @@ class Codeforces(commands.Cog):
         problem = problems[choice]
 
         title = f'{problem.index}. {problem.name}'
-        desc = cf_common.cache2.contest_cache.get_contest(problem.contestId).name
+        desc = cf_common.cache2.contest_cache.get_contest(
+            problem.contestId).name
         embed = discord.Embed(title=title, url=problem.url, description=desc)
         embed.add_field(name='Rating', value=problem.rating)
         if tags:
@@ -165,12 +171,15 @@ class Codeforces(commands.Cog):
         submissions = filt.filter_subs(submissions)
 
         if not submissions:
-            raise CodeforcesCogError('Submissions not found within the search parameters')
+            raise CodeforcesCogError(
+                'Submissions not found within the search parameters')
 
         if hardest:
-            submissions.sort(key=lambda sub: (sub.problem.rating or 0, sub.creationTimeSeconds), reverse=True)
+            submissions.sort(key=lambda sub: (
+                sub.problem.rating or 0, sub.creationTimeSeconds), reverse=True)
         else:
-            submissions.sort(key=lambda sub: sub.creationTimeSeconds, reverse=True)
+            submissions.sort(
+                key=lambda sub: sub.creationTimeSeconds, reverse=True)
 
         msg = '\n'.join(
             f'[{sub.problem.name}]({sub.problem.url})\N{EN SPACE}'
@@ -197,7 +206,8 @@ class Codeforces(commands.Cog):
         submissions = [sub for user in resp for sub in user]
         solved = {sub.problem.name for sub in submissions}
         info = await cf.user.info(handles=handles)
-        rating = int(round(sum(user.effective_rating for user in info) / len(handles), -2))
+        rating = int(
+            round(sum(user.effective_rating for user in info) / len(handles), -2))
         problems = [prob for prob in cf_common.cache2.problem_cache.problems
                     if abs(prob.rating - rating) <= 100 and prob.name not in solved
                     and not any(cf_common.is_contest_writer(prob.contestId, handle) for handle in handles)
@@ -222,7 +232,8 @@ class Codeforces(commands.Cog):
             choices.sort()
 
         problems = reversed([problems[k] for k in choices])
-        msg = '\n'.join(f'{"ABCD"[i]}: [{p.name}]({p.url}) [{p.rating}]' for i, p in enumerate(problems))
+        msg = '\n'.join(
+            f'{"ABCD"[i]}: [{p.name}]({p.url}) [{p.rating}]' for i, p in enumerate(problems))
         str_handles = '`, `'.join(handles)
         embed = discord_common.cf_color_embed(description=msg)
         await ctx.send(f'Mashup contest for `{str_handles}`', embed=embed)
@@ -286,7 +297,8 @@ class Codeforces(commands.Cog):
         member = member or ctx.author
         data = cf_common.user_db.gitlog(member.id)
         pages = [make_page(chunk) for chunk in paginator.chunkify(data, 7)]
-        paginator.paginate(self.bot, ctx.channel, pages, wait_time=5 * 60, set_pagenum_footers=True)
+        paginator.paginate(self.bot, ctx.channel, pages,
+                           wait_time=5 * 60, set_pagenum_footers=True)
 
     @commands.command(brief='Report challenge completion')
     @cf_common.user_guard(group='gitgud')
@@ -308,7 +320,8 @@ class Codeforces(commands.Cog):
 
         delta = _GITGUD_SCORE_DISTRIB[delta // 100 + 3]
         finish_time = int(datetime.datetime.now().timestamp())
-        rc = cf_common.user_db.complete_challenge(user_id, challenge_id, finish_time, delta)
+        rc = cf_common.user_db.complete_challenge(
+            user_id, challenge_id, finish_time, delta)
         if rc == 1:
             duration = cf_common.pretty_time_format(finish_time - issue_time)
             await ctx.send(f'Challenge completed in {duration}. {handle} gained {delta} points.')
@@ -327,7 +340,8 @@ class Codeforces(commands.Cog):
         challenge_id, issue_time, name, contestId, index, delta = active
         finish_time = int(datetime.datetime.now().timestamp())
         if finish_time - issue_time < _GITGUD_NO_SKIP_TIME:
-            skip_time = cf_common.pretty_time_format(issue_time + _GITGUD_NO_SKIP_TIME - finish_time)
+            skip_time = cf_common.pretty_time_format(
+                issue_time + _GITGUD_NO_SKIP_TIME - finish_time)
             await ctx.send(f'Think more. You can skip your challenge in {skip_time}.')
             return
         cf_common.user_db.skip_challenge(user_id, challenge_id, Gitgud.NOGUD)
@@ -338,7 +352,8 @@ class Codeforces(commands.Cog):
     @commands.has_any_role('Admin', 'Moderator')
     async def _nogud(self, ctx, member: discord.Member):
         active = cf_common.user_db.check_challenge(member.id)
-        rc = cf_common.user_db.skip_challenge(member.id, active[0], Gitgud.FORCED_NOGUD)
+        rc = cf_common.user_db.skip_challenge(
+            member.id, active[0], Gitgud.FORCED_NOGUD)
         if rc == 1:
             await ctx.send(f'Challenge skip forced.')
         else:
@@ -353,13 +368,15 @@ class Codeforces(commands.Cog):
         handles = await cf_common.resolve_handles(ctx, self.converter, handles, maxcnt=10)
         user_submissions = [await cf.user.status(handle=handle) for handle in handles]
         info = await cf.user.info(handles=handles)
-        contests = cf_common.cache2.contest_cache.get_contests_in_phase('FINISHED')
+        contests = cf_common.cache2.contest_cache.get_contests_in_phase(
+            'FINISHED')
         problem_to_contests = cf_common.cache2.problemset_cache.problem_to_contests
 
         if not markers:
             divr = sum(user.effective_rating for user in info) / len(handles)
             div1_indicators = ['div1', 'global', 'avito', 'goodbye', 'hello']
-            markers = ['div3'] if divr < 1600 else ['div2'] if divr < 2100 else div1_indicators
+            markers = ['div3'] if divr < 1600 else [
+                'div2'] if divr < 2100 else div1_indicators
 
         recommendations = {contest.id for contest in contests if
                            contest.matches(markers)
@@ -374,7 +391,8 @@ class Codeforces(commands.Cog):
                     continue
 
                 try:
-                    contest = cf_common.cache2.contest_cache.get_contest(sub.problem.contestId)
+                    contest = cf_common.cache2.contest_cache.get_contest(
+                        sub.problem.contestId)
                     problem_id = (sub.problem.name, contest.startTimeSeconds)
                     for cid in problem_to_contests[problem_id]:
                         recommendations.discard(cid)
@@ -386,8 +404,10 @@ class Codeforces(commands.Cog):
 
         recommendations = list(recommendations)
         random.shuffle(recommendations)
-        contests = [cf_common.cache2.contest_cache.get_contest(contest_id) for contest_id in recommendations[:5]]
-        msg = '\n'.join(f'{i+1}. [{c.name}]({c.url})' for i, c in enumerate(contests))
+        contests = [cf_common.cache2.contest_cache.get_contest(
+            contest_id) for contest_id in recommendations[:5]]
+        msg = '\n'.join(
+            f'{i+1}. [{c.name}]({c.url})' for i, c in enumerate(contests))
         embed = discord_common.cf_color_embed(description=msg)
         str_handles = '`, `'.join(handles)
         await ctx.send(f'Recommended contest(s) for `{str_handles}`', embed=embed)
@@ -408,7 +428,8 @@ class Codeforces(commands.Cog):
         for sub in await cf.user.status(handle=handle):
             if sub.verdict == 'OK':
                 try:
-                    contest = cf_common.cache2.contest_cache.get_contest(sub.problem.contestId)
+                    contest = cf_common.cache2.contest_cache.get_contest(
+                        sub.problem.contestId)
                     problem_id = (sub.problem.name, contest.startTimeSeconds)
                     for contestId in problem_to_contests[problem_id]:
                         subs_by_contest_id[contestId].add(sub.problem.name)
@@ -419,14 +440,17 @@ class Codeforces(commands.Cog):
         for contest in contests:
             num_solved = len(subs_by_contest_id[contest.id])
             try:
-                num_problems = len(cf_common.cache2.problemset_cache.get_problemset(contest.id))
+                num_problems = len(
+                    cf_common.cache2.problemset_cache.get_problemset(contest.id))
                 if 0 < num_solved < num_problems:
-                    contest_unsolved_pairs.append((contest, num_solved, num_problems))
+                    contest_unsolved_pairs.append(
+                        (contest, num_solved, num_problems))
             except cache_system2.ProblemsetNotCached:
                 # In case of recent contents or cetain bugged contests
                 pass
 
-        contest_unsolved_pairs.sort(key=lambda p: (p[2] - p[1], -p[0].startTimeSeconds))
+        contest_unsolved_pairs.sort(key=lambda p: (
+            p[2] - p[1], -p[0].startTimeSeconds))
 
         if not contest_unsolved_pairs:
             await ctx.send(f'`{handle}` has no contests to fullsolve :confetti_ball:')
@@ -442,8 +466,10 @@ class Codeforces(commands.Cog):
             embed = discord_common.cf_color_embed(description=full_solve_list)
             return message, embed
 
-        pages = [make_page(chunk) for chunk in paginator.chunkify(contest_unsolved_pairs, 10)]
-        paginator.paginate(self.bot, ctx.channel, pages, wait_time=5 * 60, set_pagenum_footers=True)
+        pages = [make_page(chunk) for chunk in paginator.chunkify(
+            contest_unsolved_pairs, 10)]
+        paginator.paginate(self.bot, ctx.channel, pages,
+                           wait_time=5 * 60, set_pagenum_footers=True)
 
     @staticmethod
     def getEloWinProbability(ra: float, rb: float) -> float:
@@ -456,7 +482,8 @@ class Codeforces(commands.Cog):
 
             rWinsProbability = 1.0
             for rating, count in ratings:
-                rWinsProbability *= Codeforces.getEloWinProbability(r, rating)**count
+                rWinsProbability *= Codeforces.getEloWinProbability(
+                    r, rating)**count
 
             if rWinsProbability < 0.5:
                 left = r
@@ -474,7 +501,8 @@ class Codeforces(commands.Cog):
         is_entire_server = (handles == ('+server',))
         if is_entire_server:
             res = cf_common.user_db.get_cf_users_for_guild(ctx.guild.id)
-            ratings = [cf_user.rating for user_id, cf_user in res if cf_user.rating is not None]
+            ratings = [cf_user.rating for user_id,
+                       cf_user in res if cf_user.rating is not None]
             user_str = '+server'
         else:
             def normalize(x):
@@ -487,7 +515,8 @@ class Codeforces(commands.Cog):
                     try:
                         handle_counts[parse_str[0]] = int(parse_str[1])
                     except ValueError:
-                        raise CodeforcesCogError("Can't multiply by non-integer")
+                        raise CodeforcesCogError(
+                            "Can't multiply by non-integer")
                 else:
                     handle_counts[parse_str[0]] = 1
                 parsed_handles.append(parse_str[0])
@@ -504,10 +533,12 @@ class Codeforces(commands.Cog):
                 elif b == 1:
                     user_strs.append(original_to_cf[a])
                 elif b <= 0:
-                    raise CodeforcesCogError('How can you have nonpositive members in team?')
+                    raise CodeforcesCogError(
+                        'How can you have nonpositive members in team?')
 
             user_str = ', '.join(user_strs)
-            ratings = [(user.rating, handle_counts[cf_to_original[user.handle.lower()]]) for user in users if user.rating]
+            ratings = [(user.rating, handle_counts[cf_to_original[user.handle.lower()]])
+                       for user in users if user.rating]
 
         if len(ratings) == 0:
             raise CodeforcesCogError("No CF usernames with ratings passed in.")
@@ -515,8 +546,9 @@ class Codeforces(commands.Cog):
         left = -100.0
         right = 10000.0
         teamRating = Codeforces.composeRatings(left, right, ratings)
-        embed = discord.Embed(title=user_str, description=teamRating, color=cf.rating2rank(teamRating).color_embed)
-        await ctx.send(embed = embed)
+        embed = discord.Embed(title=user_str, description=teamRating,
+                              color=cf.rating2rank(teamRating).color_embed)
+        await ctx.send(embed=embed)
 
     @discord_common.send_error_if(CodeforcesCogError, cf_common.ResolveHandleError,
                                   cf_common.FilterError)

@@ -54,7 +54,12 @@ def main():
 
     setup()
 
-    bot = commands.Bot(command_prefix=commands.when_mentioned_or(';'))
+    prefix = environ.get('BOT_PREFIX')
+    if not prefix:
+        logging.error('Bot prefix required')
+        return
+
+    bot = commands.Bot(command_prefix=commands.when_mentioned_or(prefix))
     cogs = [file.stem for file in Path('tle', 'cogs').glob('*.py')]
     for extension in cogs:
         if extension != "tournament":
@@ -75,7 +80,7 @@ def main():
 
     def no_dm_check(ctx):
         if ctx.guild is None:
-            raise commands.NoPrivateMessage('Private messages not permitted.')
+            raise commands.NoPrivateMessage('I refuse.')
         return True
 
     # Restrict bot usage to inside guild channels only.

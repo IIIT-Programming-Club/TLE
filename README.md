@@ -52,9 +52,10 @@ apt-get install libcairo2-dev libgirepository1.0-dev libpango1.0-dev pkg-config 
 
 You will need to setup a bot on your server before continuing, follow the directions [here](https://github.com/reactiflux/discord-irc/wiki/Creating-a-discord-bot-&-getting-a-token). Following this, you should have your bot appearing in your server and you should have the Discord bot token.
 
-To start TLE export the token as an environment variable
+To start TLE export the token and the bot prefix as an environment variable
 ```bash
 export BOT_TOKEN="<BOT_TOKEN_FROM_DISCORD_CONSOLE>"
+export BOT_PREFIX="<BOT_PREFIX_TO_BE_USED>"
 ```
 and run
 ```
@@ -78,7 +79,7 @@ poetry run python -m tle
      - Legendary Grandmaster
 
 ## Usage
-In order to run bot commands you can either ping the bot at the beginning of the command or prefix the command with a semicolon (;), e.g. `;handle pretty`.
+In order to run bot commands you can either ping the bot at the beginning of the command or prefix the command with the BOT_PREFIX (for examples, lets assume BOT_PREFIX = ';'), e.g. `;handle pretty`.
 
 In order to find available commands, you can run `;help` which will bring a list of commands/groups of commands which are available. To get more details about a specific command you can type `;help <command-name>`.
 
