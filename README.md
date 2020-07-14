@@ -1,5 +1,5 @@
-# TLE
-TLE is a Discord bot centered around Competitive Programming.
+# TLE @ IIITH
+TLE is a Discord bot centered around Competitive Programming customized for IIITH Programing Club. Based on the [TLE bot](https://github.com/cheran-senthil/TLE).
 
 ## Features
 The features of the bot are split into a number of cogs, each handling their own set of commands.
@@ -13,14 +13,18 @@ The features of the bot are split into a number of cogs, each handling their own
 ### CSES cog
 - **CSES** Commands related to the [CSES problemset](https://cses.fi/problemset/), such as showing leaderboards.
 
+### Tournament cog
+- **Tournament** Commands related to dueling tournaments. Uses the wrapper [Achallonge](https://achallonge.readthedocs.io/) for challonge API to handle tournaments.
+
 ### Other cogs
-- **Starboard** Commands related to the starboard, which adds messages to a specific channel when enough users react with a ⭐️.
+- **Starboard** Commands related to the starboard, which adds the message to starboard when the author reacts their message with a ⭐️. Used to keep track of open doubts.
 - **CacheControl** Commands related to data caching.
+
 
 ## Installation
 Clone the repository
 ```bash
-git clone https://github.com/cheran-senthil/TLE
+git clone https://github.com/Groverkss/TLE
 ```
 Now all dependencies need to be installed. TLE uses [Poetry](https://poetry.eustace.io/) to manage dependencies. After installing Poetry navigate to the root of the repo and run
 
