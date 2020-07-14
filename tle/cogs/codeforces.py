@@ -33,6 +33,7 @@ class Codeforces(commands.Cog):
     @commands.command(brief='update status, mark guild members as active')
     @commands.has_role('Admin')
     async def _updatestatus(self, ctx):
+        # No idea what this does other than counting number of people with an handle on server
         active_ids = [m.id for m in ctx.guild.members]
         rc = cf_common.user_db.update_status(active_ids)
         await ctx.send(f'{rc} members active with handle')
@@ -351,6 +352,7 @@ class Codeforces(commands.Cog):
     @cf_common.user_guard(group='gitgud')
     @commands.has_any_role('Admin', 'Moderator')
     async def _nogud(self, ctx, member: discord.Member):
+        # Allows a Admin to forces skip a user's gitugd
         active = cf_common.user_db.check_challenge(member.id)
         rc = cf_common.user_db.skip_challenge(
             member.id, active[0], Gitgud.FORCED_NOGUD)
