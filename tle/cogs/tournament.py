@@ -148,7 +148,9 @@ async def get_ranklist(index):
 
 class Tournament(commands.Cog):
     def __init__(self, bot):
-        global curr_tour
+        global curr_tour, _API
+
+        _API = environ.get('CHALLONGE_API')
 
         self.bot = bot
         self.converter = commands.MemberConverter()
