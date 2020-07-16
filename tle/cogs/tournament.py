@@ -85,7 +85,8 @@ async def get_tour(index):
         curr_tour = await challonge_user.get_tournament(url=f'progclub{index}')
 
 
-async def complete_duel(duelid, guild_id, win_status, winner, loser, finish_time, score, dtype):
+async def complete_duel(duelid, guild_id, win_status, winner,
+                        loser, finish_time, score, dtype):
     winner_r = cf_common.user_db.get_duel_rating(winner.id)
     loser_r = cf_common.user_db.get_duel_rating(loser.id)
     delta = round(elo_delta(winner_r, loser_r, score))
@@ -117,7 +118,10 @@ async def create_tour(ctx, index):
     global curr_tour
 
     challonge_user = await challonge.get_user(_USERNAME, _API)
-    challonge_tour = await challonge_user.create_tournament(name=f'IIIT Programing Club Dueling Tournament {index}', url=f'progclub{index}')
+    challonge_tour = await challonge_user.create_tournament(
+        name=f'IIIT Programing Club Dueling Tournament {index}',
+        url=f'progclub{index}')
+
     curr_tour = challonge_tour
 
     users = [(ctx.guild.get_member(user_id), user_id)
@@ -171,7 +175,8 @@ class Tournament(commands.Cog):
         if rc == 0:
             raise DuelCogError(
                 'You are already a registered contestant')
-        await ctx.send(f'Successfully registered {ctx.author.mention} as a contestant.')
+        await ctx.send(f'Successfully registered {ctx.author.mention}
+                       as a contestant.')
 
     @tour.command(brief='Begin the tournament!!')
     @commands.has_any_role('Admin', 'Moderator')
@@ -185,17 +190,22 @@ class Tournament(commands.Cog):
         index = cf_common.user_db.get_tour_index()
         await create_tour(ctx, index)
 
-    @tour.command(brief='Stop the tournament')
+    @tour.command(brief='Ends the current tournament')
     @commands.has_any_role('Admin', 'Moderator')
-    async def destroy(self, ctx):
+    async def end(self, ctx):
         """Destroys the current tournament"""
         status = cf_common.user_db.get_tour_status()
         if status is 0:
             raise DuelCogError(f'Tournament is not going on :/')
-        index = cf_common.user_db.get_tour_index()
-        await destroy_tour(index)
+
+        global curr_tour
+        curr_tour = None
+
         cf_common.user_db.update_tour_status(0)
         cf_common.user_db.update_tour_index()
+        # TODO
+        # Create a command in the database file to clear the 'registered' table
+        # cf_common.user_db.clear_tour_registered()
 
     @tour.command(brief='Sends the current standings of the current tournament')
     async def standings(self, ctx):
@@ -210,9 +220,14 @@ class Tournament(commands.Cog):
             img = discord.File(file, filename='ranklist.png')
         await ctx.send(file=img)
 
+    # Modifications to be done:
+    # Finish the rating function
+    # Remove the need to choose another member
     @tour.command(brief='Challenge to a duel')
-    async def challenge(self, ctx, opponent: discord.Member, rating: int = None):
-        """Challenge another server member to a duel. Only works if you have a pending challenge against the other server member in the ongoing tournament. Specify a rating agreed by both as a paramter"""
+    async def challenge(self, ctx, opponent: discord.Member):
+        """Challenge another server member to a duel. Only works if you have a
+         pending challenge against the other server member in the ongoing
+         tournament. Specify a rating agreed by both as a paramter"""
         status = cf_common.user_db.get_tour_status()
         if status is 0:
             raise DuelCogError(f'Tournament is not going on :/')
@@ -220,19 +235,26 @@ class Tournament(commands.Cog):
         challenger_id = ctx.author.id
         challengee_id = opponent.id
 
-        await cf_common.resolve_handles(ctx, self.converter, ('!' + str(ctx.author), '!' + str(opponent)))
+        await cf_common.resolve_handles(
+            ctx, self.converter, ('!' + str(ctx.author), '!' + str(opponent)))
+
         userids = [challenger_id, challengee_id]
         handles = [cf_common.user_db.get_handle(
             userid, ctx.guild.id) for userid in userids]
-        submissions = [await cf.user.status(handle=handle) for handle in handles]
+        submissions = [await cf.user.status(handle=handle)
+                       for handle in handles]
 
         if challenger_id == challengee_id:
             raise DuelCogError(
-                f'{ctx.author.mention}, You know how a tournament works right?')
-        if cf_common.user_db.check_tour_match(challenger_id) or cf_common.user_db.check_tour_match(challenger_id):
+                f'{ctx.author.mention}, Thats not how it usually works')
+
+        if cf_common.user_db.check_tour_match(challenger_id) or
+        cf_common.user_db.check_tour_match(challenger_id):
             raise DuelCogError(
                 f'{ctx.author.mention}, you are currently in a duel!')
-        if cf_common.user_db.check_tour_match(challengee_id) or cf_common.user_db.check_tour_match(challengee_id):
+
+        if cf_common.user_db.check_tour_match(challengee_id) or
+        cf_common.user_db.check_tour_match(challengee_id):
             raise DuelCogError(
                 f'{opponent.display_name} is currently in a duel!')
 
@@ -257,26 +279,31 @@ class Tournament(commands.Cog):
                 f'{ctx.author.mention}, You have lost :(')
         if req_match.state != 'open':
             raise DuelCogError(
-                f'{ctx.author.mention}, Your opponent has not finished their match yet')
+                f'{ctx.author.mention},
+                Your opponent has not finished their match yet')
 
         player1 = await curr_tour.get_participant(
             req_match.player1_id, force_update=True)
         player2 = await curr_tour.get_participant(
             req_match.player2_id, force_update=True)
 
-        if player1.misc != str(challengee_id) and player2.misc != str(challengee_id):
+        if player1.misc != str(challengee_id) and
+        player2.misc != str(challengee_id):
             raise DuelCogError(
-                f'{ctx.author.mention}, You dont have a pending challenge against this person')
+                f'{ctx.author.mention},
+                You dont have a pending challenge against this person')
 
         users = [cf_common.user_db.fetch_cf_user(handle) for handle in handles]
         lowest_rating = min(user.rating for user in users)
-        suggested_rating = max(
-            round(lowest_rating, -2) + _DUEL_RATING_DELTA, 500)
-        rating = round(rating, -2) if rating else suggested_rating
+
+        # Added rating formula here
+        rating = None  # TODO
+
         dtype = DuelType.OFFICIAL
 
         solved = {
-            sub.problem.name for subs in submissions for sub in subs if sub.verdict != 'COMPILATION_ERROR'}
+            sub.problem.name for subs in submissions
+            for sub in subs if sub.verdict != 'COMPILATION_ERROR'}
         seen = {name for userid in userids for name,
                 in cf_common.user_db.get_duel_problem_names(userid)}
         seen2 = {name for userid in userids for name,
@@ -288,7 +315,8 @@ class Tournament(commands.Cog):
                     and prob.name not in solved
                     and prob.name not in seen
                     and prob.name not in seen2
-                    and not any(cf_common.is_contest_writer(prob.contestId, handle) for handle in handles)
+                    and not any(cf_common.is_contest_writer(
+                        prob.contestId, handle) for handle in handles)
                     and not cf_common.is_nonstandard_problem(prob)]
 
         for problems in map(get_problems, range(rating, 400, -100)):
@@ -298,10 +326,12 @@ class Tournament(commands.Cog):
         rstr = f'{rating} rated ' if rating else ''
         if not problems:
             raise DuelCogError(
-                f'No unsolved {rstr}problems left for {ctx.author.mention} vs {opponent.mention}.')
+                f'No unsolved {rstr}problems left for
+                {ctx.author.mention} vs {opponent.mention}.')
 
-        problems.sort(key=lambda problem: cf_common.cache2.contest_cache.get_contest(
-            problem.contestId).startTimeSeconds)
+        problems.sort(
+            key=lambda problem: cf_common.cache2.contest_cache.get_contest(
+                problem.contestId).startTimeSeconds)
 
         choice = max(random.randrange(len(problems)) for _ in range(2))
         problem = problems[choice]
@@ -318,6 +348,7 @@ class Tournament(commands.Cog):
         if cf_common.user_db.cancel_match(duelid, Duel.EXPIRED):
             await ctx.send(f'{ctx.author.mention}, your request to duel {opponent.display_name} has expired!')
 
+    # Add check if tournament exists
     @ tour.command(brief='Decline a duel')
     async def decline(self, ctx):
         active = cf_common.user_db.check_match_decline(ctx.author.id)
@@ -330,6 +361,7 @@ class Tournament(commands.Cog):
         cf_common.user_db.cancel_match(duelid, Duel.DECLINED)
         await ctx.send(f'{ctx.author.display_name} declined a challenge by {challenger.mention}.')
 
+    # Add check if tournament exists
     @ tour.command(brief='Withdraw a challenge')
     async def withdraw(self, ctx):
         active = cf_common.user_db.check_match_withdraw(ctx.author.id)
@@ -342,6 +374,7 @@ class Tournament(commands.Cog):
         cf_common.user_db.cancel_match(duelid, Duel.WITHDRAWN)
         await ctx.send(f'{ctx.author.mention} withdrew a challenge to {challengee.display_name}.')
 
+    # Add check if tournament exists
     @ tour.command(brief='Accept a duel')
     async def accept(self, ctx):
         active = cf_common.user_db.check_match_accept(ctx.author.id)
@@ -369,6 +402,8 @@ class Tournament(commands.Cog):
         embed.add_field(name='Rating', value=problem.rating)
         await ctx.send(f'Starting duel: {challenger.mention} vs {ctx.author.mention}', embed=embed)
 
+    # Add check if tournament exists
+    # Change naming
     @ tour.command(brief='Complete a duel')
     async def complete(self, ctx):
         active = cf_common.user_db.check_match_complete(ctx.author.id)
@@ -429,6 +464,7 @@ class Tournament(commands.Cog):
         else:
             await ctx.send('Nobody solved the problem yet.')
 
+    # Add check if tournament exists
     @ tour.command(brief='Offer/Accept a draw')
     async def draw(self, ctx):
         active = cf_common.user_db.check_match_draw(ctx.author.id)
@@ -483,6 +519,7 @@ class Tournament(commands.Cog):
 
         return [make_page(chunk) for chunk in paginator.chunkify(data, 7)]
 
+    # Add check if tournament exists
     @ tour.command(brief='Print list of ongoing matches in the tournament')
     async def ongoing(self, ctx, member: discord.Member = None):
         def make_line(entry):
@@ -590,6 +627,7 @@ class Tournament(commands.Cog):
         challengee = ctx.guild.get_member(challengee_id)
         await ctx.send(f'Duel between {challenger.mention} and {challengee.mention} has been invalidated.')
 
+    # Add check if tournament exists
     @ tour.command(brief='Invalidate the duel')
     async def invalidate(self, ctx):
         """Declare your duel invalid. Use this if you've solved the problem prior to the duel.
@@ -604,6 +642,7 @@ class Tournament(commands.Cog):
                 f'{ctx.author.mention}, you can no longer invalidate your duel.')
         await self.invalidate_duel(ctx, duelid, challenger_id, challengee_id)
 
+    # Add check if tournament exists
     @ tour.command(brief='Invalidate a duel', usage='[duelist]')
     @ commands.has_any_role('Admin', 'Moderator')
     async def _invalidate(self, ctx, member: discord.Member):
