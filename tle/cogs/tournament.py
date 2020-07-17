@@ -61,7 +61,7 @@ def rating2rank(rating):
 def rating_formula(users):
     # TODO: Create a better formula to calculate rating
     average_rating = mean(user.rating for user in users)
-    return int(average_rating)
+    return round(int(average_rating), -2)
 
 
 class DuelCogError(commands.CommandError):
