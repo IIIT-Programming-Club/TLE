@@ -142,7 +142,7 @@ async def create_tour(ctx, index):
     for d_name, user_id in users:
         await challonge_tour.add_participant(d_name, misc=user_id)
 
-    challonge_tour.shuffle_participants()
+    await challonge_tour.shuffle_participants()
 
     await challonge_tour.start()
     await ctx.send(f'Tournament has begun!')
