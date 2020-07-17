@@ -139,10 +139,10 @@ async def create_tour(ctx, index):
              if member is not None and
              cf_common.user_db.get_handle(user_id, ctx.guild.id) is not None]
 
+    random.shuffle(users)
+
     for d_name, user_id in users:
         await challonge_tour.add_participant(d_name, misc=user_id)
-
-    # await challonge_tour.shuffle_participants()
 
     await challonge_tour.start()
     await ctx.send(f'Tournament has begun!')
