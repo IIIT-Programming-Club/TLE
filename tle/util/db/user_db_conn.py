@@ -712,6 +712,7 @@ class UserDbConn:
         return self.conn.execute(query).fetchall()
 
     # Tournament database functions start
+
     def register_contestant(self, userid):
         query = '''
             INSERT OR IGNORE INTO contestant (user_id)
@@ -918,6 +919,14 @@ class UserDbConn:
 
         self.conn.commit()
         return 1
+
+    def clear_registeration_table(self):
+        query = f'''
+            DELETE FROM contestant
+        '''
+        self.conn.execute(query)
+        self.conn.commit()
+
     # Tournament database functions end
 
     def get_rankup_channel(self, guild_id):

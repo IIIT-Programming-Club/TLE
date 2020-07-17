@@ -59,8 +59,9 @@ def rating2rank(rating):
 
 
 def rating_formula(users):
-    # TODO: Calculate rating based on user ratings
+    # TODO: Create a better formula to calculate rating
     average_rating = mean(user.rating for user in users)
+    return int(average_rating)
 
 
 class DuelCogError(commands.CommandError):
@@ -119,6 +120,7 @@ async def complete_duel(duelid, guild_id, win_status, winner,
         await match.report_winner(req_player, "0-1")
 
 
+# TODO: Add seed based on rating
 async def create_tour(ctx, index):
     """Creates an instance of tournament at challonge"""
     global curr_tour
@@ -208,8 +210,7 @@ class Tournament(commands.Cog):
 
         cf_common.user_db.update_tour_status(0)
         cf_common.user_db.update_tour_index()
-        # TODO
-        # Create a command in the database file to clear the 'registered' table
+        cf_common.user_db.clear_registeration_table()
 
     @tour.command(brief='Sends the current standings of the current tournament')
     async def standings(self, ctx):
@@ -349,7 +350,7 @@ class Tournament(commands.Cog):
         if cf_common.user_db.cancel_match(duelid, Duel.EXPIRED):
             await ctx.send(f'{ctx.author.mention}, your request to duel {opponent.display_name} has expired!')
 
-    @ tour.command(brief='Decline a duel')
+    @tour.command(brief='Decline a duel')
     async def decline(self, ctx):
         status = cf_common.user_db.get_tour_status()
         if status is 0:
@@ -365,7 +366,7 @@ class Tournament(commands.Cog):
         cf_common.user_db.cancel_match(duelid, Duel.DECLINED)
         await ctx.send(f'{ctx.author.display_name} declined a challenge by {challenger.mention}.')
 
-    @ tour.command(brief='Withdraw a challenge')
+    @tour.command(brief='Withdraw a challenge')
     async def withdraw(self, ctx):
         status = cf_common.user_db.get_tour_status()
         if status is 0:
@@ -381,7 +382,7 @@ class Tournament(commands.Cog):
         cf_common.user_db.cancel_match(duelid, Duel.WITHDRAWN)
         await ctx.send(f'{ctx.author.mention} withdrew a challenge to {challengee.display_name}.')
 
-    @ tour.command(brief='Accept a duel')
+    @tour.command(brief='Accept a duel')
     async def accept(self, ctx):
         status = cf_common.user_db.get_tour_status()
         if status is 0:
@@ -413,7 +414,7 @@ class Tournament(commands.Cog):
         await ctx.send(f'Starting duel: {challenger.mention} vs {ctx.author.mention}', embed=embed)
 
     # Change naming
-    @ tour.command(brief='Complete a duel')
+    @tour.command(brief='Complete a duel')
     async def complete(self, ctx):
         status = cf_common.user_db.get_tour_status()
         if status is 0:
@@ -477,7 +478,7 @@ class Tournament(commands.Cog):
         else:
             await ctx.send('Nobody solved the problem yet.')
 
-    @ tour.command(brief='Offer/Accept a draw')
+    @tour.command(brief='Offer/Accept a draw')
     async def draw(self, ctx):
         status = cf_common.user_db.get_tour_status()
         if status is 0:
@@ -535,7 +536,7 @@ class Tournament(commands.Cog):
 
         return [make_page(chunk) for chunk in paginator.chunkify(data, 7)]
 
-    @ tour.command(brief='Print list of ongoing matches in the tournament')
+    @tour.command(brief='Print list of ongoing matches in the tournament')
     async def ongoing(self, ctx, member: discord.Member = None):
         def make_line(entry):
             start_time, name, challenger, challengee = entry
@@ -566,7 +567,7 @@ class Tournament(commands.Cog):
         paginator.paginate(self.bot, ctx.channel, pages,
                            wait_time=5 * 60, set_pagenum_footers=True)
 
-    @ tour.command(brief='Prints list of pending matches in the tournament')
+    @tour.command(brief='Prints list of pending matches in the tournament')
     async def pending(self, ctx, member: discord.Member = None):
 
         def make_line(entry):
@@ -602,7 +603,7 @@ class Tournament(commands.Cog):
         paginator.paginate(self.bot, ctx.channel, pages,
                            wait_time=5 * 60, set_pagenum_footers=True)
 
-    @ tour.command(brief="Show registered contestants")
+    @tour.command(brief="Show registered contestants")
     async def registered(self, ctx):
         """Show the list of register contestants."""
         users = [(ctx.guild.get_member(user_id))
@@ -646,7 +647,7 @@ class Tournament(commands.Cog):
         challengee = ctx.guild.get_member(challengee_id)
         await ctx.send(f'Duel between {challenger.mention} and {challengee.mention} has been invalidated.')
 
-    @ tour.command(brief='Invalidate the duel')
+    @tour.command(brief='Invalidate the duel')
     async def invalidate(self, ctx):
         """Declare your duel invalid. Use this if you've solved the problem prior to the duel.
         You can only use this functionality during the first 60 seconds of the duel."""
@@ -665,8 +666,8 @@ class Tournament(commands.Cog):
                 f'{ctx.author.mention}, you can no longer invalidate your duel.')
         await self.invalidate_duel(ctx, duelid, challenger_id, challengee_id)
 
-    @ tour.command(brief='Invalidate a duel', usage='[duelist]')
-    @ commands.has_any_role('Admin', 'Moderator')
+    @tour.command(brief='Invalidate a duel', usage='[duelist]')
+    @commands.has_any_role('Admin', 'Moderator')
     async def _invalidate(self, ctx, member: discord.Member):
         """Declare an ongoing duel invalid."""
 
@@ -681,7 +682,7 @@ class Tournament(commands.Cog):
         duelid, challenger_id, challengee_id, _, _, _, _, _ = active
         await self.invalidate_duel(ctx, duelid, challenger_id, challengee_id)
 
-    @ discord_common.send_error_if(DuelCogError)
+    @discord_common.send_error_if(DuelCogError)
     async def cog_command_error(self, ctx, error):
         pass
 
