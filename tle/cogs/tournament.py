@@ -259,10 +259,10 @@ class Tournament(commands.Cog):
         player2 = await curr_tour.get_participant(
             req_match.player2_id, force_update=True)
 
-        if player1.misc == challenger_id:
-            challengee_id = player2.misc
+        if player1.misc == str(challenger_id):
+            challengee_id = int(player2.misc)
         else:
-            challengee_id = player1.misc
+            challengee_id = int(player1.misc)
 
         raise DuelCogError(
             f'{[player1.misc, player2.misc, challenger_id, challengee_id]}')
