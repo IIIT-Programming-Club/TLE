@@ -176,8 +176,8 @@ class Tournament(commands.Cog):
         if rc == 0:
             raise DuelCogError(
                 'You are already a registered contestant')
-        await ctx.send(f'Successfully registered {ctx.author.mention} \
-                       as a contestant.')
+        await ctx.send(f'Successfully registered {ctx.author.mention}'
+                       + 'as a contestant.')
 
     @tour.command(brief='Begin the tournament!!')
     @commands.has_any_role('Admin', 'Moderator')
