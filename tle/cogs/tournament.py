@@ -374,8 +374,8 @@ class Tournament(commands.Cog):
         await ctx.send(f'{ctx.author.mention} withdrew a challenge to {challengee.display_name}.')
 
     @tour.command(brief='Accept a duel')
-    """Accept the challenge!"""
     async def accept(self, ctx):
+        '''Accept the challenge!'''
         status = cf_common.user_db.get_tour_status()
         if status == 0:
             raise DuelCogError(f'Tournament is not going on :/')
