@@ -264,7 +264,8 @@ class Tournament(commands.Cog):
         else:
             challengee_id = player1.misc
 
-        raise DuelCogError(f'{[challenger_id, challengee_id]}')
+        raise DuelCogError(
+            f'{[player1.misc, player2.misc, challenger_id, challengee_id]}')
 
         opponent = ctx.guild.get_member(challengee_id)
 
