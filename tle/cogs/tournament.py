@@ -220,7 +220,7 @@ class Tournament(commands.Cog):
         await ctx.send(file=img)
 
     @tour.command(brief='Challenge to a duel')
-    async def challenge(self, ctx, opponent: discord.Member):
+    async def challenge(self, ctx):
         """Challenge another server member to a duel. Only works if you have a
          pending challenge against the other server member in the ongoing
          tournament. Specify a rating agreed by both as a paramter"""
