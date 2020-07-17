@@ -264,7 +264,7 @@ class Tournament(commands.Cog):
         else:
             challengee_id = player1.misc
 
-        opponent = ctx.get_member(challengee_id)
+        opponent = ctx.guild.get_member(challengee_id)
 
         await cf_common.resolve_handles(
             ctx, self.converter, ('!' + str(ctx.author), '!' + str(opponent)))
