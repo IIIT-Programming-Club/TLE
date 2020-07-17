@@ -120,7 +120,7 @@ async def complete_duel(duelid, guild_id, win_status, winner,
         await match.report_winner(req_player, "0-1")
 
 
-# TODO: Add seed based on rating
+# TODO: Create a better seeding way
 async def create_tour(ctx, index):
     """Creates an instance of tournament at challonge"""
     global curr_tour
@@ -142,7 +142,10 @@ async def create_tour(ctx, index):
     for d_name, user_id in users:
         await challonge_tour.add_participant(d_name, misc=user_id)
 
+    challonge_tour.shuffle_participants()
+
     await challonge_tour.start()
+    await ctx.send(f'Tournament has begun!')
 
 
 async def get_ranklist(index):
@@ -177,7 +180,7 @@ class Tournament(commands.Cog):
             raise DuelCogError(
                 'You are already a registered contestant')
         await ctx.send(f'Successfully registered {ctx.author.mention}'
-                       + 'as a contestant.')
+                       + ' as a contestant.')
 
     @tour.command(brief='Begin the tournament!!')
     @commands.has_any_role('Admin', 'Moderator')
@@ -194,7 +197,7 @@ class Tournament(commands.Cog):
     @tour.command(brief='Ends the current tournament')
     @commands.has_any_role('Admin', 'Moderator')
     async def end(self, ctx):
-        """Destroys the current tournament"""
+        """Ends the current tournament"""
         status = cf_common.user_db.get_tour_status()
         if status == 0:
             raise DuelCogError(f'Tournament is not going on :/')
@@ -221,9 +224,7 @@ class Tournament(commands.Cog):
 
     @tour.command(brief='Challenge to a duel')
     async def challenge(self, ctx):
-        """Challenge another server member to a duel. Only works if you have a
-         pending challenge against the other server member in the ongoing
-         tournament. Specify a rating agreed by both as a paramter"""
+        """Challenge your opponent to a duel!"""
         status = cf_common.user_db.get_tour_status()
         if status == 0:
             raise DuelCogError(f'Tournament is not going on :/')
@@ -340,6 +341,7 @@ class Tournament(commands.Cog):
 
     @tour.command(brief='Decline a duel')
     async def decline(self, ctx):
+        """Decline a challenge against you"""
         status = cf_common.user_db.get_tour_status()
         if status == 0:
             raise DuelCogError(f'Tournament is not going on :/')
@@ -355,6 +357,7 @@ class Tournament(commands.Cog):
         await ctx.send(f'{ctx.author.display_name} declined a challenge by {challenger.mention}.')
 
     @tour.command(brief='Withdraw a challenge')
+    """Withdraw a challenge you sent"""
     async def withdraw(self, ctx):
         status = cf_common.user_db.get_tour_status()
         if status == 0:
@@ -371,6 +374,7 @@ class Tournament(commands.Cog):
         await ctx.send(f'{ctx.author.mention} withdrew a challenge to {challengee.display_name}.')
 
     @tour.command(brief='Accept a duel')
+    """Accept the challenge!"""
     async def accept(self, ctx):
         status = cf_common.user_db.get_tour_status()
         if status == 0:
@@ -401,9 +405,9 @@ class Tournament(commands.Cog):
         embed.add_field(name='Rating', value=problem.rating)
         await ctx.send(f'Starting duel: {challenger.mention} vs {ctx.author.mention}', embed=embed)
 
-    # Change naming
     @tour.command(brief='Complete a duel')
     async def complete(self, ctx):
+        """Record your win and move on to the next opponent!"""
         status = cf_common.user_db.get_tour_status()
         if status == 0:
             raise DuelCogError(f'Tournament is not going on :/')
@@ -468,6 +472,7 @@ class Tournament(commands.Cog):
 
     @tour.command(brief='Offer/Accept a draw')
     async def draw(self, ctx):
+        """Offer a draw if you both agree on a draw"""
         status = cf_common.user_db.get_tour_status()
         if status == 0:
             raise DuelCogError(f'Tournament is not going on :/')
@@ -526,6 +531,7 @@ class Tournament(commands.Cog):
 
     @tour.command(brief='Print list of ongoing matches in the tournament')
     async def ongoing(self, ctx, member: discord.Member = None):
+        """Shows ongoing duels"""
         def make_line(entry):
             start_time, name, challenger, challengee = entry
             problem = cf_common.cache2.problem_cache.problem_by_name[name]
@@ -557,6 +563,7 @@ class Tournament(commands.Cog):
 
     @tour.command(brief='Prints list of pending matches in the tournament')
     async def pending(self, ctx, member: discord.Member = None):
+        """Shows current pending duels"""
 
         def make_line(entry):
             challenger, challengee = entry
@@ -657,7 +664,7 @@ class Tournament(commands.Cog):
     @tour.command(brief='Invalidate a duel', usage='[duelist]')
     @commands.has_any_role('Admin', 'Moderator')
     async def _invalidate(self, ctx, member: discord.Member):
-        """Declare an ongoing duel invalid."""
+        """Forcefully declare an ongoing duel invalid."""
 
         status = cf_common.user_db.get_tour_status()
         if status == 0:
