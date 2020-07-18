@@ -94,9 +94,7 @@ async def get_tour(index):
 
 async def complete_duel(duelid, guild_id, win_status, winner,
                         loser, finish_time, score, dtype):
-    winner_r = cf_common.user_db.get_duel_rating(winner.id)
-    loser_r = cf_common.user_db.get_duel_rating(loser.id)
-    delta = round(elo_delta(winner_r, loser_r, score))
+    delta = 0
     rc = cf_common.user_db.complete_match(
         duelid, win_status, finish_time, winner.id, loser.id, delta, dtype)
     if rc == 0:
