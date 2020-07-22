@@ -3,9 +3,13 @@ import functools
 import json
 import logging
 import time
+import pymongo
 import datetime as dt
+import seaborn as sns
+from matplotlib import pyplot as plt
 
 from collections import defaultdict
+from os import environ
 
 import discord
 from discord.ext import commands
@@ -19,6 +23,7 @@ from tle.util import paginator
 from tle.util import ranklist as rl
 from tle.util import table
 from tle.util import tasks
+from tle.util import graph_common as gc
 
 _CONTESTS_PER_PAGE = 5
 _CONTEST_PAGINATE_WAIT_TIME = 5 * 60
@@ -26,6 +31,18 @@ _STANDINGS_PER_PAGE = 15
 _STANDINGS_PAGINATE_WAIT_TIME = 2 * 60
 _FINISHED_CONTESTS_LIMIT = 5
 
+color_map = [
+    [ -10 ** 9, 1199, '#cccccc' ],
+    [ 1200, 1399, '#77ff77' ],
+    [ 1400, 1599, '#77ddbb' ],
+    [ 1600, 1899, '#aaaaff' ],
+    [ 1900, 2099, '#ff88ff' ],
+    [ 2100, 2299, '#ffcc88' ],
+    [ 2300, 2399, '#ffbb55' ],
+    [ 2400, 2599, '#ff7777' ],
+    [ 2600, 2999, '#ff3333' ],
+    [ 3000, 10 ** 9, '#aa0000' ]
+]
 
 class ContestCogError(commands.CommandError):
     pass
@@ -464,6 +481,82 @@ class Contests(commands.Cog):
 
         await ctx.send(embed=self._make_contest_embed_for_ranklist(ranklist))
         paginator.paginate(self.bot, ctx.channel, pages, wait_time=_STANDINGS_PAGINATE_WAIT_TIME)
+
+    @commands.command(brief='Show # vs rating graph for a contest.')
+    async def cstatus(self, ctx, contest_id: int):
+        """Shows # vs rating graph for the contest with given contest id."""
+
+        contest = cf_common.cache2.contest_cache.get_contest(contest_id)
+        wait_msg = None
+        if contest.phase != 'BEFORE':
+            raise ContestCogError(f'Contest `{contest.id} | {contest.name}` is not a future contest')
+        wait_msg = await ctx.send('Please wait...')
+
+        self.logger.info(f'Querying Atlas MongoDB')
+
+        registrants = []
+
+        with pymongo.MongoClient(environ.get('DB_STR')) as myclient:
+            mydb = myclient["contestPredictionData"]
+            if str(contest_id) in mydb.collection_names():
+                mycol = mydb[str(contest_id)]
+                registrants = mycol.find()
+
+        if registrants == []:
+            if wait_msg:
+                try:
+                    await wait_msg.delete()
+                except:
+                    pass
+            raise ContestCogError(f"Registration for contest `{contest.id} | {contest.name}` hasn't started")
+
+        rating_count = {}
+        for registrant in registrants:
+            rating = int(registrant["rating"])
+            if rating in rating_count:
+                rating_count[rating] += 1
+            else:
+                rating_count[rating] = 1
+
+        divcnt = [ 0, 0, 0 ]
+        for rating in rating_count:
+            divcnt[ 0 if rating < 1600 else 2 if rating >= 2100 else 1 ] += rating_count[rating]
+
+        ratings = [ rating for rating in list(rating_count.keys()) if rating >= 500 ]
+        ratings.sort()
+        counts = [ rating_count[rating] for rating in ratings ]
+        colors = []
+        for rating in ratings:
+            for col in color_map:
+                if rating >= col[0] and rating <= col[1]:
+                    colors.append(col[2])
+                    break
+
+        plt.clf()
+        plt.xlabel('Rating')
+        plt.ylabel('#')
+        barlist = plt.bar(ratings, counts)
+        for bar in barlist:
+            rating = float(bar.get_xy()[0])
+            for col in color_map:
+                if rating >= col[0] and rating <= col[1]:
+                    bar.set_color(col[2])
+                    break
+        plt.text(0.7, 1,'Total = ' + str(sum(divcnt)) + '\nDiv1 = ' + str(divcnt[2]) + '\nDiv2 = ' + str(divcnt[1]) + '\nDiv3 = ' + str(divcnt[0]),
+            horizontalalignment='left', verticalalignment='center', transform = plt.gca().transAxes)
+        plt.gcf().autofmt_xdate()
+        discord_file = gc.get_current_figure_as_file()
+        embed = discord_common.cf_color_embed(title='Graph of # vs Rating for contest with id = ' + str(contest_id))
+        discord_common.attach_image(embed, discord_file)
+        discord_common.set_author_footer(embed, ctx.author)
+
+        if wait_msg:
+            try:
+                await wait_msg.delete()
+            except:
+                pass
+
+        await ctx.send(embed=embed, file=discord_file)
 
     @discord_common.send_error_if(ContestCogError, rl.RanklistError,
                                   cache_system2.CacheError,  cf_common.ResolveHandleError)
