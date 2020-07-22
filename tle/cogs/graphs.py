@@ -22,18 +22,20 @@ from tle.util import graph_common as gc
 pd.plotting.register_matplotlib_converters()
 
 # A user is considered active if the duration since his last contest is not more than this
-CONTEST_ACTIVE_TIME_CUTOFF = 90 * 24 * 60 * 60 # 90 days
+CONTEST_ACTIVE_TIME_CUTOFF = 90 * 24 * 60 * 60  # 90 days
 
 
 class GraphCogError(commands.CommandError):
     pass
 
+
 def nice_sub_type(types):
-    nice_map = {'CONTESTANT':'Contest: {}',
-                'OUT_OF_COMPETITION':'Unofficial: {}',
-                'VIRTUAL':'Virtual: {}',
-                'PRACTICE':'Practice: {}'}
+    nice_map = {'CONTESTANT': 'Contest: {}',
+                'OUT_OF_COMPETITION': 'Unofficial: {}',
+                'VIRTUAL': 'Virtual: {}',
+                'PRACTICE': 'Practice: {}'}
     return [nice_map[t] for t in types]
+
 
 def _plot_rating(resp, mark='o'):
 
@@ -41,7 +43,8 @@ def _plot_rating(resp, mark='o'):
         ratings, times = [], []
         for rating_change in rating_changes:
             ratings.append(rating_change.newRating)
-            times.append(dt.datetime.fromtimestamp(rating_change.ratingUpdateTimeSeconds))
+            times.append(dt.datetime.fromtimestamp(
+                rating_change.ratingUpdateTimeSeconds))
 
         plt.plot(times,
                  ratings,
@@ -53,6 +56,7 @@ def _plot_rating(resp, mark='o'):
 
     gc.plot_rating_bg(cf.RATED_RANKS)
     plt.gcf().autofmt_xdate()
+
 
 def _classify_submissions(submissions):
     solved_by_type = {sub_type: [] for sub_type in cf.Party.PARTICIPANT_TYPES}
@@ -102,7 +106,8 @@ def _get_extremes(contest, problemset, submissions):
 
 def _plot_extreme(handle, rating, packed_contest_subs_problemset, solved, unsolved):
     extremes = [
-        (dt.datetime.fromtimestamp(contest.end_time), _get_extremes(contest, problemset, subs))
+        (dt.datetime.fromtimestamp(contest.end_time),
+         _get_extremes(contest, problemset, subs))
         for contest, problemset, subs in packed_contest_subs_problemset
     ]
     regular = []
@@ -178,7 +183,8 @@ def _plot_average(practice, bin_size, label: str = ''):
 
         sub_timestamps = [sub_time.timestamp() for sub_time in sub_times]
         mean_sub_timestamps = _running_mean(sub_timestamps, bin_size)
-        mean_sub_times = [dt.datetime.fromtimestamp(timestamp) for timestamp in mean_sub_timestamps]
+        mean_sub_times = [dt.datetime.fromtimestamp(
+            timestamp) for timestamp in mean_sub_timestamps]
         mean_ratings = _running_mean(ratings, bin_size)
 
         plt.plot(mean_sub_times,
@@ -212,7 +218,8 @@ class Graphs(commands.Cog):
         handles = args or ('!' + str(ctx.author),)
         handles = await cf_common.resolve_handles(ctx, self.converter, handles)
         resp = [await cf.user.rating(handle=handle) for handle in handles]
-        resp = [filt.filter_rating_changes(rating_changes) for rating_changes in resp]
+        resp = [filt.filter_rating_changes(
+            rating_changes) for rating_changes in resp]
 
         if not any(resp):
             handles_str = ', '.join(f'`{handle}`' for handle in handles)
@@ -224,7 +231,8 @@ class Graphs(commands.Cog):
 
         plt.clf()
         _plot_rating(resp)
-        current_ratings = [rating_changes[-1].newRating if rating_changes else 'Unrated' for rating_changes in resp]
+        current_ratings = [
+            rating_changes[-1].newRating if rating_changes else 'Unrated' for rating_changes in resp]
         labels = [gc.StrWrap(f'{handle} ({rating})') for handle, rating in zip(handles, current_ratings)]
         plt.legend(labels, loc='upper left')
 
@@ -238,7 +246,8 @@ class Graphs(commands.Cog):
             plt.ylim(min_rating - 100, max_rating + 200)
 
         discord_file = gc.get_current_figure_as_file()
-        embed = discord_common.cf_color_embed(title='Rating graph on Codeforces')
+        embed = discord_common.cf_color_embed(
+            title='Rating graph on Codeforces')
         discord_common.attach_image(embed, discord_file)
         discord_common.set_author_footer(embed, ctx.author)
         await ctx.send(embed=embed, file=discord_file)
@@ -249,7 +258,8 @@ class Graphs(commands.Cog):
         """Plots pairs of lowest rated unsolved problem and highest rated solved problem for every
         contest that was rated for the given user.
         """
-        (solved, unsolved), args = cf_common.filter_flags(args, ['+solved', '+unsolved'])
+        (solved, unsolved), args = cf_common.filter_flags(
+            args, ['+solved', '+unsolved'])
         if not solved and not unsolved:
             solved = unsolved = True
 
@@ -272,11 +282,14 @@ class Graphs(commands.Cog):
             for contest_id in contest_ids
         ]
 
-        rating = max(ratingchanges, key=lambda change: change.ratingUpdateTimeSeconds).newRating
-        _plot_extreme(handle, rating, packed_contest_subs_problemset, solved, unsolved)
+        rating = max(
+            ratingchanges, key=lambda change: change.ratingUpdateTimeSeconds).newRating
+        _plot_extreme(handle, rating,
+                      packed_contest_subs_problemset, solved, unsolved)
 
         discord_file = gc.get_current_figure_as_file()
-        embed = discord_common.cf_color_embed(title='Codeforces extremes graph')
+        embed = discord_common.cf_color_embed(
+            title='Codeforces extremes graph')
         discord_common.attach_image(embed, discord_file)
         discord_common.set_author_footer(embed, ctx.author)
         await ctx.send(embed=embed, file=discord_file)
@@ -291,7 +304,8 @@ class Graphs(commands.Cog):
         handles = args or ('!' + str(ctx.author),)
         handles = await cf_common.resolve_handles(ctx, self.converter, handles)
         resp = [await cf.user.status(handle=handle) for handle in handles]
-        all_solved_subs = [filt.filter_subs(submissions) for submissions in resp]
+        all_solved_subs = [filt.filter_subs(
+            submissions) for submissions in resp]
 
         if not any(all_solved_subs):
             raise GraphCogError(f'There are no problems within the specified parameters.')
@@ -301,16 +315,19 @@ class Graphs(commands.Cog):
         plt.ylabel('Number solved')
         if len(handles) == 1:
             # Display solved problem separately by type for a single user.
-            handle, solved_by_type = handles[0], _classify_submissions(all_solved_subs[0])
+            handle, solved_by_type = handles[0], _classify_submissions(
+                all_solved_subs[0])
             all_ratings = [[sub.problem.rating for sub in solved_by_type[sub_type]]
                            for sub_type in filt.types]
 
             nice_names = nice_sub_type(filt.types)
-            labels = [name.format(len(ratings)) for name, ratings in zip(nice_names, all_ratings)]
+            labels = [name.format(len(ratings))
+                      for name, ratings in zip(nice_names, all_ratings)]
 
             step = 100
             # shift the range to center the text
-            hist_bins = list(range(filt.rlo - step // 2, filt.rhi + step // 2 + 1, step))
+            hist_bins = list(range(filt.rlo - step // 2,
+                                   filt.rhi + step // 2 + 1, step))
             plt.hist(all_ratings, stacked=True, bins=hist_bins, label=labels)
             total = sum(map(len, all_ratings))
             plt.legend(title=f'{handle}: {total}', title_fontsize=plt.rcParams['legend.fontsize'],
@@ -323,12 +340,14 @@ class Graphs(commands.Cog):
                       for handle, ratings in zip(handles, all_ratings)]
 
             step = 200
-            hist_bins = list(range(filt.rlo - step // 2, filt.rhi + step // 2 + 1, step))
+            hist_bins = list(range(filt.rlo - step // 2,
+                                   filt.rhi + step // 2 + 1, step))
             plt.hist(all_ratings, bins=hist_bins)
             plt.legend(labels, loc='upper right')
 
         discord_file = gc.get_current_figure_as_file()
-        embed = discord_common.cf_color_embed(title='Histogram of problems solved on Codeforces')
+        embed = discord_common.cf_color_embed(
+            title='Histogram of problems solved on Codeforces')
         discord_common.attach_image(embed, discord_file)
         discord_common.set_author_footer(embed, ctx.author)
         await ctx.send(embed=embed, file=discord_file)
@@ -342,7 +361,8 @@ class Graphs(commands.Cog):
         handles = args or ('!' + str(ctx.author),)
         handles = await cf_common.resolve_handles(ctx, self.converter, handles)
         resp = [await cf.user.status(handle=handle) for handle in handles]
-        all_solved_subs = [filt.filter_subs(submissions) for submissions in resp]
+        all_solved_subs = [filt.filter_subs(
+            submissions) for submissions in resp]
 
         if not any(all_solved_subs):
             raise GraphCogError(f'There are no problems within the specified parameters.')
@@ -351,12 +371,14 @@ class Graphs(commands.Cog):
         plt.xlabel('Time')
         plt.ylabel('Number solved')
         if len(handles) == 1:
-            handle, solved_by_type = handles[0], _classify_submissions(all_solved_subs[0])
+            handle, solved_by_type = handles[0], _classify_submissions(
+                all_solved_subs[0])
             all_times = [[dt.datetime.fromtimestamp(sub.creationTimeSeconds) for sub in solved_by_type[sub_type]]
                          for sub_type in filt.types]
 
             nice_names = nice_sub_type(filt.types)
-            labels = [name.format(len(times)) for name, times in zip(nice_names, all_times)]
+            labels = [name.format(len(times))
+                      for name, times in zip(nice_names, all_times)]
             plt.hist(all_times, stacked=True, label=labels, bins=34)
 
             total = sum(map(len, all_times))
@@ -376,7 +398,8 @@ class Graphs(commands.Cog):
 
         plt.gcf().autofmt_xdate()
         discord_file = gc.get_current_figure_as_file()
-        embed = discord_common.cf_color_embed(title='Histogram of number of solved problems over time')
+        embed = discord_common.cf_color_embed(
+            title='Histogram of number of solved problems over time')
         discord_common.attach_image(embed, discord_file)
         discord_common.set_author_footer(embed, ctx.author)
         await ctx.send(embed=embed, file=discord_file)
@@ -403,7 +426,8 @@ class Graphs(commands.Cog):
         handle = handle or '!' + str(ctx.author)
         handle, = await cf_common.resolve_handles(ctx, self.converter, (handle,))
         rating_resp = [await cf.user.rating(handle=handle)]
-        rating_resp = [filt.filter_rating_changes(rating_changes) for rating_changes in rating_resp]
+        rating_resp = [filt.filter_rating_changes(
+            rating_changes) for rating_changes in rating_resp]
         submissions = filt.filter_subs(await cf.user.status(handle=handle))
 
         def extract_time_and_rating(submissions):
@@ -449,7 +473,7 @@ class Graphs(commands.Cog):
         ratings = [r for r in ratings if r >= 0]
         assert ratings, 'Cannot histogram plot empty list of ratings'
 
-        assert 100%binsize == 0 # because bins is semi-hardcoded
+        assert 100 % binsize == 0  # because bins is semi-hardcoded
         bins = 39*100//binsize
 
         colors = []
@@ -471,11 +495,13 @@ class Graphs(commands.Cog):
             cent.append(round(100 * csum / users))
 
         x = [k * binsize for k in range(bins)]
-        label = [f'{r} ({c})' for r,c in zip(x, cent)]
+        label = [f'{r} ({c})' for r, c in zip(x, cent)]
 
-        l,r = 0,bins-1
-        while not height[l]: l += 1
-        while not height[r]: r -= 1
+        l, r = 0, bins-1
+        while not height[l]:
+            l += 1
+        while not height[r]:
+            r -= 1
         x = x[l:r+1]
         cent = cent[l:r+1]
         label = label[l:r+1]
@@ -487,7 +513,8 @@ class Graphs(commands.Cog):
 
         plt.xticks(rotation=45)
         plt.xlim(l * binsize - binsize//2, r * binsize + binsize//2)
-        plt.bar(x, height, binsize*0.9, color=colors, linewidth=0, tick_label=label, log=(mode == 'log'))
+        plt.bar(x, height, binsize*0.9, color=colors, linewidth=0,
+                tick_label=label, log=(mode == 'log'))
         plt.xlabel('Rating')
         plt.ylabel('Number of users')
 
@@ -516,7 +543,7 @@ class Graphs(commands.Cog):
                                 title='Rating distribution of server members')
 
     @plot.command(brief='Show Codeforces rating distribution', usage='[normal/log] [active/all] [contest_cutoff=5]')
-    async def cfdistrib(self, ctx, mode: str = 'log', activity = 'active', contest_cutoff: int = 5):
+    async def cfdistrib(self, ctx, mode: str = 'log', activity='active', contest_cutoff: int = 5):
         """Plots rating distribution of either active or all users on Codeforces, in either normal or log scale.
         Default mode is log, default activity is active (competed in last 90 days)
         Default contest cutoff is 5 (competed at least five times overall)
@@ -524,12 +551,16 @@ class Graphs(commands.Cog):
         if activity not in ['active', 'all']:
             raise GraphCogError('Activity should be either `active` or `all`')
 
-        time_cutoff = int(time.time()) - CONTEST_ACTIVE_TIME_CUTOFF if activity == 'active' else 0
-        handles = cf_common.cache2.rating_changes_cache.get_users_with_more_than_n_contests(time_cutoff, contest_cutoff)
+        time_cutoff = int(
+            time.time()) - CONTEST_ACTIVE_TIME_CUTOFF if activity == 'active' else 0
+        handles = cf_common.cache2.rating_changes_cache.get_users_with_more_than_n_contests(
+            time_cutoff, contest_cutoff)
         if not handles:
-            raise GraphCogError('No Codeforces users meet the specified criteria')
+            raise GraphCogError(
+                'No Codeforces users meet the specified criteria')
 
-        ratings = [cf_common.cache2.rating_changes_cache.get_current_rating(handle) for handle in handles]
+        ratings = [cf_common.cache2.rating_changes_cache.get_current_rating(
+            handle) for handle in handles]
         title = f'Rating distribution of {activity} Codeforces users ({mode} scale)'
         await self._rating_hist(ctx,
                                 ratings,
@@ -564,35 +595,35 @@ class Graphs(commands.Cog):
                     raise GraphCogError(f'User `{info.handle}` is not rated')
                 ix = bisect.bisect_left(ratings, info.rating)
                 cent = 100*ix/len(ratings)
-                users_to_mark[info.handle] = info.rating,cent
+                users_to_mark[info.handle] = info.rating, cent
         else:
             users_to_mark = {}
 
         # Plot
         plt.clf()
-        fig,ax = plt.subplots(1)
+        fig, ax = plt.subplots(1)
         ax.plot(ratings, perc, color='#00000099')
 
         plt.xlabel('Rating')
         plt.ylabel('Percentile')
 
-        for pos in ['right','top','bottom','left']:
+        for pos in ['right', 'top', 'bottom', 'left']:
             ax.spines[pos].set_visible(False)
-        ax.tick_params(axis='both', which='both',length=0)
+        ax.tick_params(axis='both', which='both', length=0)
 
         # Color intervals by rank
-        for interval,color in zip(intervals,colors):
+        for interval, color in zip(intervals, colors):
             alpha = '99'
-            l,r = interval
+            l, r = interval
             col = color + alpha
-            rect = patches.Rectangle((l,-50), r-l, 200,
+            rect = patches.Rectangle((l, -50), r-l, 200,
                                      edgecolor='none',
                                      facecolor=col)
             ax.add_patch(rect)
 
         # Mark users in plot
-        for user,point in users_to_mark.items():
-            x,y = point
+        for user, point in users_to_mark.items():
+            x, y = point
             plt.annotate(user,
                          xy=point,
                          xytext=(0, 0),
@@ -622,11 +653,13 @@ class Graphs(commands.Cog):
         # Draw tick lines
         linecolor = '#00000022'
         inf = 10000
+
         def horz_line(y):
-            l = mlines.Line2D([-inf,inf], [y,y], color=linecolor)
+            l = mlines.Line2D([-inf, inf], [y, y], color=linecolor)
             ax.add_line(l)
+
         def vert_line(x):
-            l = mlines.Line2D([x,x], [-inf,inf], color=linecolor)
+            l = mlines.Line2D([x, x], [-inf, inf], color=linecolor)
             ax.add_line(l)
         for y in ax.get_yticks():
             horz_line(y)
@@ -648,7 +681,8 @@ class Graphs(commands.Cog):
 
         # shift the [-300, 300] gitgud range to center the text
         hist_bins = list(range(-300 - 50, 300 + 50 + 1, 100))
-        deltas = [[x[0] for x in cf_common.user_db.howgud(member.id)] for member in members]
+        deltas = [[x[0] for x in cf_common.user_db.howgud(
+            member.id)] for member in members]
         labels = [gc.StrWrap(f'{member.display_name}: {len(delta)}')
                   for member, delta in zip(members, deltas)]
 
@@ -677,7 +711,8 @@ class Graphs(commands.Cog):
             raise GraphCogError(f'At most {max_countries} countries may be specified.')
 
         users = cf_common.user_db.get_cf_users_for_guild(ctx.guild.id)
-        counter = collections.Counter(user.country for _, user in users if user.country)
+        counter = collections.Counter(
+            user.country for _, user in users if user.country)
 
         if not countries:
             # list because seaborn complains for tuple.
@@ -696,18 +731,21 @@ class Graphs(commands.Cog):
                         fontsize='x-small')
 
             plt.xticks(rotation=40, horizontalalignment='right')
-            ax.tick_params(axis='x', length=4, color=ax.spines['bottom'].get_edgecolor())
+            ax.tick_params(axis='x', length=4,
+                           color=ax.spines['bottom'].get_edgecolor())
             plt.xlabel('Country')
             plt.ylabel('Number of members')
             discord_file = gc.get_current_figure_as_file()
             plt.close(fig)
-            embed = discord_common.cf_color_embed(title='Distribution of server members by country')
+            embed = discord_common.cf_color_embed(
+                title='Distribution of server members by country')
         else:
             countries = [country.title() for country in countries]
             data = [[user.country, user.rating]
                     for _, user in users if user.rating and user.country and user.country in countries]
             if not data:
-                raise GraphCogError('No rated members from the specified countries are present.')
+                raise GraphCogError(
+                    'No rated members from the specified countries are present.')
 
             color_map = {rating: f'#{cf.rating2rank(rating).color_embed:06x}' for _, rating in data}
             df = pd.DataFrame(data, columns=['Country', 'Rating'])
@@ -724,7 +762,8 @@ class Graphs(commands.Cog):
                                   order=column_order, palette=color_map)
                 plt.xticks(rotation=30, horizontalalignment='right')
                 ax = plt.gca()
-                ax.tick_params(axis='x', color=ax.spines['bottom'].get_edgecolor())
+                ax.tick_params(
+                    axis='x', color=ax.spines['bottom'].get_edgecolor())
             plt.legend().remove()
             plt.xlabel('Country')
             plt.ylabel('Rating')
@@ -732,6 +771,96 @@ class Graphs(commands.Cog):
             embed = discord_common.cf_color_embed(title='Rating distribution of server members by '
                                                         'country')
 
+        discord_common.attach_image(embed, discord_file)
+        discord_common.set_author_footer(embed, ctx.author)
+        await ctx.send(embed=embed, file=discord_file)
+
+    @plot.command(brief='Show rating changes by rank', usage='contest_id [+server] [+zoom] [handles..]')
+    async def visualrank(self, ctx, contest_id: int, *args: str):
+        """Plot rating changes by rank. Add handles to specify a handle in the plot.
+        if arguments contains `+server`, it will include just server members and not all codeforces users.
+        Specify `+zoom` to zoom to the neighborhood of handles."""
+
+        args = set(args)
+        (in_server, zoom), handles = cf_common.filter_flags(
+            args, ['+server', '+zoom'])
+        handles = await cf_common.resolve_handles(ctx, self.converter, handles, mincnt=0, maxcnt=20)
+
+        users = cf_common.cache2.rating_changes_cache.get_rating_changes_for_contest(
+            contest_id)
+
+        if not users:
+            raise GraphCogError(f'No rating change cache for contest `{contest_id}`')
+
+        if in_server:
+            guild_handles = [handle for discord_id, handle
+                             in cf_common.user_db.get_handles_for_guild(ctx.guild.id)]
+            users = [user for user in users if user.handle in guild_handles]
+
+        ranks = []
+        delta = []
+        color = []
+        users_to_mark = dict()
+
+        for user in users:
+            user_delta = user.newRating - user.oldRating
+
+            ranks.append(user.rank)
+            delta.append(user_delta)
+            color.append(cf.rating2rank(user.oldRating).color_graph)
+
+            if user.handle in handles:
+                users_to_mark[user.handle] = (user.rank, user_delta)
+
+        title = users[0].contestName
+
+        plt.clf()
+        fig = plt.figure(figsize=(12, 8))
+        plt.title(title)
+        plt.xlabel('Rank')
+        plt.ylabel('Rating Changes')
+
+        ymargin = 50
+        xmargin = 50
+        if users_to_mark and zoom:
+            xmin = min(point[0] for point in users_to_mark.values())
+            xmax = max(point[0] for point in users_to_mark.values())
+            ymin = min(point[1] for point in users_to_mark.values())
+            ymax = max(point[1] for point in users_to_mark.values())
+            mark_size = 2e4 / (xmax - xmin + 2 * xmargin)
+
+            plt.xlim(xmin - xmargin, xmax + xmargin)
+            plt.ylim(ymin - ymargin, ymax + ymargin)
+        else:
+            ylim = 0
+            if users_to_mark:
+                ylim = max(abs(point[1]) for point in users_to_mark.values())
+            ylim = max(ylim, 200)
+            xmax = max(user.rank for user in users)
+            mark_size = 2e4 / (xmax + 2 * xmargin)
+
+            plt.xlim(-xmargin, xmax + xmargin)
+            plt.ylim(-ylim - ymargin, ylim + ymargin)
+
+        plt.scatter(ranks, delta, s=mark_size, c=color)
+
+        for handle, point in users_to_mark.items():
+            plt.annotate(handle,
+                         xy=point,
+                         xytext=(0, 0),
+                         textcoords='offset points',
+                         ha='left',
+                         va='bottom',
+                         fontsize='large')
+            plt.plot(*point,
+                     marker='o',
+                     markersize=5,
+                     color='black')
+
+        discord_file = gc.get_current_figure_as_file()
+        plt.close(fig)
+
+        embed = discord_common.cf_color_embed(title=title)
         discord_common.attach_image(embed, discord_file)
         discord_common.set_author_footer(embed, ctx.author)
         await ctx.send(embed=embed, file=discord_file)
