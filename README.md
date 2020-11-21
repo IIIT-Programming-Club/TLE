@@ -59,6 +59,8 @@ pip3 install -r requirements.txt
 You will need to setup a bot on your server before continuing, follow the
 directions [here](https://github.com/reactiflux/discord-irc/wiki/Creating-a-discord-bot-&-getting-a-token).
 Following this, you should have your bot appearing in your server and you should have the Discord bot token.
+Finally, go to the `Bot` settings in your App's Developer Portal (in the same page where you copied your Bot Token)
+and enable the `Server Members Intent`.
 
 To start TLE export the token and the bot prefix as an environment variable. 
 These can be placed in a file `secrets` in the base folder and the `run.sh`
