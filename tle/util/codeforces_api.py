@@ -16,7 +16,7 @@ GYM_BASE_URL = "https://codeforces.com/gym/"
 PROFILE_BASE_URL = "https://codeforces.com/profile/"
 ACMSGURU_BASE_URL = "https://codeforces.com/problemsets/acmsguru/"
 GYM_ID_THRESHOLD = 100000
-DEFAULT_RATING = 1500
+DEFAULT_RATING = 0
 MAX_HANDLES_PER_QUERY = 300  # To avoid sending too large requests.
 
 logger = logging.getLogger(__name__)

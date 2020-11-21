@@ -1,3 +1,4 @@
+from pprint import pprint
 from PIL import Image, ImageFont, ImageDraw
 from tle import constants
 from tle.util import db
@@ -339,13 +340,6 @@ class Handles(commands.Cog):
         role_names_to_remove = {rank.title for rank in cf.RATED_RANKS}
         if role_to_assign is not None:
             role_names_to_remove.discard(role_to_assign.name)
-            if role_to_assign.name not in [
-                "Newbie",
-                "Pupil",
-                "Specialist",
-                "Expert",
-            ]:
-                role_names_to_remove.add("Purgatory")
         to_remove = [
             role for role in member.roles if role.name in role_names_to_remove
         ]
@@ -372,17 +366,20 @@ class Handles(commands.Cog):
             )
         cf_common.user_db.cache_cf_user(user)
 
-        if user.rank == cf.UNRATED_RANK:
-            role_to_assign = None
+        if user.rating is None:
+            role_title = "Newbie" 
         else:
-            roles = [
-                role for role in ctx.guild.roles if role.name == user.rank.title
-            ]
-            if not roles:
-                raise HandleCogError(
-                    f"Role for rank `{user.rank.title}` not present in the server"
-                )
-            role_to_assign = roles[0]
+            role_title = user.rank.title
+
+        roles = [
+            role for role in ctx.guild.roles if role.name == role_title
+        ]
+        if not roles:
+            raise HandleCogError(
+                f"Role for rank `{user.rank.title}` not present in the server"
+            )
+        role_to_assign = roles[0]
+
         await self.update_member_rank_role(
             member, role_to_assign, reason="New handle set for user"
         )
