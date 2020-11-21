@@ -1,6 +1,7 @@
 import asyncio
 import argparse
 import logging
+import discord
 import os
 from logging.handlers import TimedRotatingFileHandler
 from os import environ
@@ -22,21 +23,28 @@ def setup():
         os.makedirs(path, exist_ok=True)
 
     # logging to console and file on daily interval
-    logging.basicConfig(format='{asctime}:{levelname}:{name}:{message}', style='{',
-                        datefmt='%d-%m-%Y %H:%M:%S', level=logging.INFO,
-                        handlers=[logging.StreamHandler(),
-                                  TimedRotatingFileHandler(constants.LOG_FILE_PATH, when='D',
-                                                           backupCount=3, utc=True)])
+    logging.basicConfig(
+        format="{asctime}:{levelname}:{name}:{message}",
+        style="{",
+        datefmt="%d-%m-%Y %H:%M:%S",
+        level=logging.INFO,
+        handlers=[
+            logging.StreamHandler(),
+            TimedRotatingFileHandler(
+                constants.LOG_FILE_PATH, when="D", backupCount=3, utc=True
+            ),
+        ],
+    )
 
     # matplotlib and seaborn
-    plt.rcParams['figure.figsize'] = 7.0, 3.5
+    plt.rcParams["figure.figsize"] = 7.0, 3.5
     sns.set()
     options = {
-        'axes.edgecolor': '#A0A0C5',
-        'axes.spines.top': False,
-        'axes.spines.right': False,
+        "axes.edgecolor": "#A0A0C5",
+        "axes.spines.top": False,
+        "axes.spines.right": False,
     }
-    sns.set_style('darkgrid', options)
+    sns.set_style("darkgrid", options)
 
     # Download fonts if necessary
     font_downloader.maybe_download()
@@ -44,43 +52,48 @@ def setup():
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--nodb', action='store_true')
+    parser.add_argument("--nodb", action="store_true")
     args = parser.parse_args()
 
-    token = environ.get('BOT_TOKEN')
+    token = environ.get("BOT_TOKEN")
     if not token:
-        logging.error('Token required')
+        logging.error("Token required")
         return
 
     setup()
 
-    prefix = environ.get('BOT_PREFIX')
+    intents = discord.Intents.default()
+    intents.members = True
+
+    prefix = environ.get("BOT_PREFIX")
     if not prefix:
-        logging.error('Bot prefix required')
+        logging.error("Bot prefix required")
         return
 
-    bot = commands.Bot(command_prefix=commands.when_mentioned_or(prefix))
-    cogs = [file.stem for file in Path('tle', 'cogs').glob('*.py')]
+    bot = commands.Bot(
+        command_prefix=commands.when_mentioned_or(prefix), intents=intents
+    )
+    cogs = [file.stem for file in Path("tle", "cogs").glob("*.py")]
     for extension in cogs:
         if extension != "tournament":
-            bot.load_extension(f'tle.cogs.{extension}')
+            bot.load_extension(f"tle.cogs.{extension}")
     logging.info(f'Cogs loaded: {", ".join(bot.cogs)}')
 
-    @bot.command(brief='Starts a tournament')
-    @commands.has_any_role('Admin', 'Moderator')
+    @bot.command(brief="Starts a tournament")
+    @commands.has_any_role("Admin", "Moderator")
     async def load_tour(ctx):
         """Starts a new tournament"""
-        bot.load_extension(f'tle.cogs.tournament')
+        bot.load_extension(f"tle.cogs.tournament")
 
-    @bot.command(brief='Close the ongoing tournament')
-    @commands.has_any_role('Admin', 'Moderator')
+    @bot.command(brief="Close the ongoing tournament")
+    @commands.has_any_role("Admin", "Moderator")
     async def unload_tour(ctx):
         """Stops the ongoing tournament"""
-        bot.unload_extension(f'tle.cogs.tournament')
+        bot.unload_extension(f"tle.cogs.tournament")
 
     def no_dm_check(ctx):
         if ctx.guild is None:
-            raise commands.NoPrivateMessage('I refuse.')
+            raise commands.NoPrivateMessage("I refuse.")
         return True
 
     # Restrict bot usage to inside guild channels only.
@@ -91,10 +104,10 @@ def main():
         await cf_common.initialize(args.nodb)
         asyncio.create_task(discord_common.presence(bot))
 
-    bot.add_listener(discord_common.bot_error_handler, name='on_command_error')
+    bot.add_listener(discord_common.bot_error_handler, name="on_command_error")
 
     bot.run(token)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

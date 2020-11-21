@@ -366,7 +366,7 @@ class Handles(commands.Cog):
             )
         cf_common.user_db.cache_cf_user(user)
 
-        if user.rating is None:
+        if user.rank == cf.UNRATED_RANK:
             role_title = "Newbie" 
         else:
             role_title = user.rank.title
@@ -514,16 +514,19 @@ class Handles(commands.Cog):
         """
         countries = [country.title() for country in countries]
         res = cf_common.user_db.get_cf_users_for_guild(ctx.guild.id)
+        pprint(res)
         users = [
             (ctx.guild.get_member(user_id), cf_user.handle, cf_user.rating)
             for user_id, cf_user in res
             if not countries or cf_user.country in countries
         ]
+        pprint(users)
         users = [
             (member, handle, rating)
             for member, handle, rating in users
             if member is not None
         ]
+        pprint(users)
         if not users:
             raise HandleCogError("No members with registered handles.")
 
