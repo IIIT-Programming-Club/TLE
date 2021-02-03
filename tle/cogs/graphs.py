@@ -231,7 +231,16 @@ def _plot_average(practice, bin_size, label: str = ""):
             label=label,
         )
 
-
+def _mention_to_handle(args,ctx):
+    for x in args:
+        if x.startswith('<@!') :
+            linked_acc = cf_common.user_db.get_handle(x[3:-1],ctx.guild.id)
+            if not linked_acc:
+                raise GraphCogError(
+                    f"Handle for <@!{x[3:-1]}> not found in database"
+                )
+            else:
+                x = linked_acc
 class Graphs(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -256,6 +265,7 @@ class Graphs(commands.Cog):
         (zoom,), args = cf_common.filter_flags(args, ["+zoom"])
         filt = cf_common.SubFilter()
         args = filt.parse(args)
+        args = _mention_to_handle(args,ctx)
         handles = args or ("!" + str(ctx.author),)
         handles = await cf_common.resolve_handles(ctx, self.converter, handles)
         resp = [await cf.user.rating(handle=handle) for handle in handles]
@@ -360,6 +370,7 @@ class Graphs(commands.Cog):
         e.g. ;plot solved meooow +contest +virtual +outof +dp"""
         filt = cf_common.SubFilter()
         args = filt.parse(args)
+        args = _mention_to_handle(args,ctx)
         handles = args or ("!" + str(ctx.author),)
         handles = await cf_common.resolve_handles(ctx, self.converter, handles)
         resp = [await cf.user.status(handle=handle) for handle in handles]
@@ -437,6 +448,7 @@ class Graphs(commands.Cog):
         """Shows the histogram of problems solved over time on Codeforces for the handles provided."""
         filt = cf_common.SubFilter()
         args = filt.parse(args)
+        args = _mention_to_handle(args,ctx)
         handles = args or ("!" + str(ctx.author),)
         handles = await cf_common.resolve_handles(ctx, self.converter, handles)
         resp = [await cf.user.status(handle=handle) for handle in handles]
@@ -515,6 +527,7 @@ class Graphs(commands.Cog):
         Also plots a running average of ratings of problems solved in practice."""
         filt = cf_common.SubFilter()
         args = filt.parse(args)
+        args = _mention_to_handle(args,ctx)
         handle, bin_size, point_size = None, 10, 3
         for arg in args:
             if arg[0:2] == "b=":
