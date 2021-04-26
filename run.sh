@@ -7,8 +7,8 @@ cd "$(dirname "$0")"
 
 while true; do
     git pull
-    pip3 install -r requirements.txt
-    FONTCONFIG_FILE=$PWD/extra/fonts.conf python3 __main__.py
+    python3.8 -m pip install -r requirements.txt
+    FONTCONFIG_FILE=$PWD/extra/fonts.conf python3.8 __main__.py
 
     (( $? != 42 )) && break
 

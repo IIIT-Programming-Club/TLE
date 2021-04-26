@@ -24,6 +24,16 @@ _GITGUD_MAX_ABS_DELTA_VALUE = 300
 class CodeforcesCogError(commands.CommandError):
     pass
 
+def _mention_to_handle(args,ctx):
+    for x in args:
+        if x.startswith('<@!') :
+            linked_acc = cf_common.user_db.get_handle(x[3:-1],ctx.guild.id)
+            if not linked_acc:
+                raise CodeforcesCogError(
+                    f"Handle for <@!{x[3:-1]}> not found in database"
+                )
+            else:
+                x = linked_acc
 
 class Codeforces(commands.Cog):
     def __init__(self, bot):
@@ -202,6 +212,7 @@ class Codeforces(commands.Cog):
         (hardest,), args = cf_common.filter_flags(args, ["+hardest"])
         filt = cf_common.SubFilter(False)
         args = filt.parse(args)
+        args = _mention_to_handle(args,ctx)
         handles = args or ("!" + str(ctx.author),)
         handles = await cf_common.resolve_handles(ctx, self.converter, handles)
         submissions = [

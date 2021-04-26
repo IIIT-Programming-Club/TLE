@@ -24,7 +24,7 @@ The features of the bot are split into a number of cogs, each handling their own
 ## Installation
 Clone the repository
 ```bash
-git clone https://github.com/Groverkss/TLE
+git clone https://github.com/Vidit-Jain/TLE
 ```
 
 > :warning: **TLE requires Python 3.7 or later!**
