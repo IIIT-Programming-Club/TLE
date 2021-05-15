@@ -1,0 +1,4 @@
+#!/bin/bash
+
+source .env/bin/activate
+./run.sh >/dev/null 2>/dev/null &
