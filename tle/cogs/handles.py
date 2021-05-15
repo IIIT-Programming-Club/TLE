@@ -960,7 +960,7 @@ class Handles(commands.Cog):
         """e.g. ;role remove duel"""
         if which == "vc":
             await self._generic_remind(ctx, action, "Virtual Contestant", "vc")
-        elif which == "duel":
+        elif which == "duel" or which == "dual":
             await self._generic_remind(ctx, action, "Duelist", "duel")
         else:
             raise HandleCogError(f"Invalid role {which}")

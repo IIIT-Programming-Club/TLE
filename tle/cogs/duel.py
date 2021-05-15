@@ -105,7 +105,7 @@ class Dueling(commands.Cog):
         self.converter = commands.MemberConverter()
         self.draw_offers = {}
 
-    @commands.group(brief="Duel commands", invoke_without_command=True)
+    @commands.group(brief="Duel commands", invoke_without_command=True, aliases=["dual"])
     async def duel(self, ctx):
         """Group for commands pertaining to duels"""
         await ctx.send_help(ctx.command)
