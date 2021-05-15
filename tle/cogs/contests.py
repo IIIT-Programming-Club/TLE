@@ -4,12 +4,14 @@ import json
 import logging
 import time
 import datetime as dt
+import random
 
 from collections import defaultdict
 
 import discord
 from discord.ext import commands
 
+from tle.cogs.codeforces import CodeforcesCogError
 from tle.util import codeforces_common as cf_common
 from tle.util import cache_system2
 from tle.util import db
@@ -25,6 +27,7 @@ _CONTEST_PAGINATE_WAIT_TIME = 5 * 60
 _STANDINGS_PER_PAGE = 15
 _STANDINGS_PAGINATE_WAIT_TIME = 2 * 60
 _FINISHED_CONTESTS_LIMIT = 5
+_TOP_PARTICIPANTS_SHOWN = 5
 
 
 class ContestCogError(commands.CommandError):
@@ -138,13 +141,9 @@ class Contests(commands.Cog):
 
         # Future contests already sorted by start time.
         self.active_contests.sort(key=lambda contest: contest.startTimeSeconds)
-        self.finished_contests.sort(
-            key=lambda contest: contest.end_time, reverse=True
-        )
+        self.finished_contests.sort(key=lambda contest: contest.end_time, reverse=True)
         # Keep most recent _FINISHED_LIMIT
-        self.finished_contests = self.finished_contests[
-            :_FINISHED_CONTESTS_LIMIT
-        ]
+        self.finished_contests = self.finished_contests[:_FINISHED_CONTESTS_LIMIT]
 
         self.logger.info(f"Refreshed cache")
         self.start_time_map.clear()
@@ -222,9 +221,7 @@ class Contests(commands.Cog):
             set_pagenum_footers=True,
         )
 
-    @commands.group(
-        brief="Commands for listing contests", invoke_without_command=True
-    )
+    @commands.group(brief="Commands for listing contests", invoke_without_command=True)
     async def clist(self, ctx):
         await ctx.send_help(ctx.command)
 
@@ -259,9 +256,7 @@ class Contests(commands.Cog):
             empty_msg="No finished contests found",
         )
 
-    @commands.group(
-        brief="Commands for contest reminders", invoke_without_command=True
-    )
+    @commands.group(brief="Commands for contest reminders", invoke_without_command=True)
     async def remind(self, ctx):
         await ctx.send_help(ctx.command)
 
@@ -279,9 +274,7 @@ class Contests(commands.Cog):
             ctx.guild.id, ctx.channel.id, role.id, json.dumps(before)
         )
         await ctx.send(
-            embed=discord_common.embed_success(
-                "Reminder settings saved successfully"
-            )
+            embed=discord_common.embed_success("Reminder settings saved successfully")
         )
         self._reschedule_tasks(ctx.guild.id)
 
@@ -289,9 +282,7 @@ class Contests(commands.Cog):
     @commands.has_role("Admin")
     async def clear(self, ctx):
         cf_common.user_db.clear_reminder_settings(ctx.guild.id)
-        await ctx.send(
-            embed=discord_common.embed_success("Reminder settings cleared")
-        )
+        await ctx.send(embed=discord_common.embed_success("Reminder settings cleared"))
         self._reschedule_tasks(ctx.guild.id)
 
     @remind.command(brief="Show reminder settings")
@@ -299,9 +290,7 @@ class Contests(commands.Cog):
         """Shows the role, channel and before time settings."""
         settings = cf_common.user_db.get_reminder_settings(ctx.guild.id)
         if settings is None:
-            await ctx.send(
-                embed=discord_common.embed_neutral("Reminder not set")
-            )
+            await ctx.send(embed=discord_common.embed_neutral("Reminder not set"))
             return
         channel_id, role_id, before = settings
         channel_id, role_id, before = (
@@ -309,24 +298,18 @@ class Contests(commands.Cog):
             int(role_id),
             json.loads(before),
         )
-        channel, role = ctx.guild.get_channel(channel_id), ctx.guild.get_role(
-            role_id
-        )
+        channel, role = ctx.guild.get_channel(channel_id), ctx.guild.get_role(role_id)
         if channel is None:
             raise ContestCogError(
                 "The channel set for reminders is no longer available"
             )
         if role is None:
-            raise ContestCogError(
-                "The role set for reminders is no longer available"
-            )
+            raise ContestCogError("The role set for reminders is no longer available")
         before_str = ", ".join(str(before_mins) for before_mins in before)
         embed = discord_common.embed_success("Current reminder settings")
         embed.add_field(name="Channel", value=channel.mention)
         embed.add_field(name="Role", value=role.mention)
-        embed.add_field(
-            name="Before", value=f"At {before_str} mins before contest"
-        )
+        embed.add_field(name="Before", value=f"At {before_str} mins before contest")
         await ctx.send(embed=embed)
 
     @staticmethod
@@ -337,9 +320,7 @@ class Contests(commands.Cog):
         _, role_id, _ = settings
         role = guild.get_role(int(role_id))
         if role is None:
-            raise ContestCogError(
-                "The role set for reminders is no longer available."
-            )
+            raise ContestCogError("The role set for reminders is no longer available.")
         return role
 
     @remind.command(brief="Subscribe to contest reminders")
@@ -390,9 +371,7 @@ class Contests(commands.Cog):
         header_style = "{:>} {:<}    {:^}  " + "  ".join(
             ["{:^}"] * len(problem_indices)
         )
-        body_style = "{:>} {:<}    {:>}  " + "  ".join(
-            ["{:>}"] * len(problem_indices)
-        )
+        body_style = "{:>} {:<}    {:>}  " + "  ".join(["{:>}"] * len(problem_indices))
         header = ["#", "Handle", "="] + problem_indices
         if deltas:
             header_style += "  {:^}"
@@ -420,9 +399,7 @@ class Contests(commands.Cog):
         return header_style, body_style, header, body
 
     @staticmethod
-    def _get_icpc_standings_table(
-        problem_indices, handle_standings, deltas=None
-    ):
+    def _get_icpc_standings_table(problem_indices, handle_standings, deltas=None):
         header_style = "{:>} {:<}    {:^}  {:^}  " + "  ".join(
             ["{:^}"] * len(problem_indices)
         )
@@ -514,12 +491,8 @@ class Contests(commands.Cog):
     @staticmethod
     def _make_contest_embed_for_ranklist(ranklist):
         contest = ranklist.contest
-        assert (
-            contest.phase != "BEFORE"
-        ), f"Contest {contest.id} has not started."
-        embed = discord_common.cf_color_embed(
-            title=contest.name, url=contest.url
-        )
+        assert contest.phase != "BEFORE", f"Contest {contest.id} has not started."
+        embed = discord_common.cf_color_embed(title=contest.name, url=contest.url)
         phase = contest.phase.capitalize().replace("_", " ")
         embed.add_field(name="Phase", value=phase)
         if ranklist.is_rated:
@@ -545,9 +518,7 @@ class Contests(commands.Cog):
             embed.add_field(name="When", value=msg, inline=False)
         return embed
 
-    @commands.command(
-        brief="Show ranklist for given handles and/or server members"
-    )
+    @commands.command(brief="Show ranklist for given handles and/or server members")
     async def ranklist(self, ctx, contest_id: int, *handles: str):
         """Shows ranklist for the contest with given contest id. If handles contains
         '+server', all server members are included. No handles defaults to '+server'.
@@ -600,8 +571,7 @@ class Contests(commands.Cog):
         deltas = None
         if ranklist.is_rated:
             deltas = [
-                ranklist.get_delta(handle)
-                for handle, standing in handle_standings
+                ranklist.get_delta(handle) for handle, standing in handle_standings
             ]
 
         problem_indices = [problem.index for problem in ranklist.problems]
@@ -622,6 +592,130 @@ class Contests(commands.Cog):
             pages,
             wait_time=_STANDINGS_PAGINATE_WAIT_TIME,
         )
+
+    @commands.command(
+        brief="Show server members participation statistics", usage="[month] [handles]"
+    )
+    async def serverstat(self, ctx, timed_month: str = "", *handles: str):
+        """
+        Show server member participation statistics for the given month. If handles contains
+        '+server', all server members are included. No handles defaults to '+server'.
+        Format month as 'mmm-YY', for example, 'may-20'. No month defaults to current month.
+        """
+
+        def monthToNum(shortMonth):
+            return {
+                "jan": 1,
+                "feb": 2,
+                "mar": 3,
+                "apr": 4,
+                "may": 5,
+                "jun": 6,
+                "jul": 7,
+                "aug": 8,
+                "sep": 9,
+                "oct": 10,
+                "nov": 11,
+                "dec": 12,
+            }[shortMonth]
+
+        handles = set(handles)
+
+        if not handles:
+            handles.add("+server")
+        if "+server" in handles:
+            handles.remove("+server")
+            guild_handles = [
+                handle
+                for discord_id, handle in cf_common.user_db.get_handles_for_guild(
+                    ctx.guild.id
+                )
+            ]
+            handles.update(guild_handles)
+        handles = await cf_common.resolve_handles(
+            ctx, self.member_converter, handles, maxcnt=None
+        )
+
+        if not timed_month:
+            tp = dt.datetime.now()
+            timed_month = tp.strftime("%b").lower() + "-" + tp.strftime("%y")
+
+        try:
+            month, year = timed_month.split("-")
+            failed = not month or not year
+        except ValueError:
+            failed = True
+
+        if failed:
+            raise CodeforcesCogError(
+                "Either do not supply month (to get current month) or supply mmm-YY. Example, 'may-20'"
+            )
+
+        year = int(year)
+        mon_num = monthToNum(month)
+
+        if year < 13 or mon_num < 0 or mon_num > 12:
+            raise CodeforcesCogError("Invalid month or year")
+
+        year += 2000
+        start_timestamp = dt.datetime(year, mon_num, 1)
+        if mon_num == 12:
+            end_timestamp = dt.datetime(year + 1, 1, 1)
+        else:
+            end_timestamp = dt.datetime(year, mon_num + 1, 1)
+
+        start_seconds = start_timestamp.timestamp()
+        end_seconds = end_timestamp.timestamp()
+
+        # we have to count number of contests users gave in the range from start to end timestamp
+
+        finished_contests = cf_common.cache2.contest_cache.get_contests_in_phase("FINISHED")
+        contests_usable = [
+            contest
+            for contest in finished_contests
+            if start_seconds <= contest.startTimeSeconds + contest.durationSeconds < end_seconds
+        ]
+
+        async def get_standings(contest):
+            try:
+                ranklist = cf_common.cache2.ranklist_cache.get_ranklist(contest)
+            except cache_system2.RanklistNotMonitored:
+                ranklist = await cf_common.cache2.ranklist_cache.generate_ranklist(
+                    contest.id, fetch_changes=True
+                )
+            return ranklist
+
+        wait_msg = await ctx.send("Please wait...")
+        contest_standings = [await get_standings(contest) for contest in contests_usable]
+
+        def count_contest(cf_handle):
+            return sum(
+                [
+                    1 if cf_handle in ranklist.standing_by_id else 0
+                    for ranklist in contest_standings
+                ]
+            )
+
+        handle_contest_count = sorted(
+            [(count_contest(handle), handle) for handle in handles],
+            key=lambda x: x[0],
+            reverse=True,
+        )[:_TOP_PARTICIPANTS_SHOWN]
+
+        if wait_msg:
+            try:
+                await wait_msg.delete()
+            except:
+                pass
+
+        embed_color_seed = random.randrange(0, 100)
+        display_month = timed_month[0].upper() + timed_month[1:].replace("-", " ")
+        embed_obj = discord_common.cf_color_embed_fixed(
+            description="\n".join([str(count) + " " + handle for count, handle in handle_contest_count]),
+            title="Top 5 most contests given in " + display_month,
+            seed=embed_color_seed,
+        )
+        await ctx.channel.send(embed=embed_obj)
 
     @discord_common.send_error_if(
         ContestCogError,
