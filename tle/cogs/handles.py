@@ -772,10 +772,17 @@ class Handles(commands.Cog):
             title = "Top five ranks " + ("(official)" if official else "(all)")
             title_use = f"{title} {emoji}"
 
+            if official and top_ranks_str_official == top_ranks_str:
+                description = "Same as all ranks"
+            else:
+                description = (
+                    "\n".join(top_ranks_list)
+                    or "Nobody participated in todays contest :("
+                )
+
             # make the embed object
             embed_obj = discord_common.cf_color_embed_fixed(
-                description="\n".join(top_ranks_list)
-                or "Nobody participated in todays contest :(",
+                description=description,
                 title=title_use,
                 seed=embed_color_seed,
             )
