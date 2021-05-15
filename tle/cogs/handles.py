@@ -410,7 +410,7 @@ class Handles(commands.Cog):
             raise HandleCogError(
                 f"{ctx.author.mention}, please visit https://codeforces.com/settings/social"
                 " and set your organization to 'IIIT Hyderabad' (without quotes). Only then"
-                " your handle will be identified."
+                " your handle will be identified. If you're an alumni, contact `@bot-admin`."
             )
 
         problems = [
