@@ -1,14 +1,14 @@
-#!/bin/sh
+#!/bin/bash
 
 # Get to a predictable directory, the directory of this script
 cd "$(dirname "$0")"
 
-[ -e secrets ] && . ./secrets
+[ -e environment ] && . ./environment
 
 while true; do
     git pull
-    python3.8 -m pip install -r requirements.txt
-    FONTCONFIG_FILE=$PWD/extra/fonts.conf python3.8 __main__.py
+    poetry install
+    FONTCONFIG_FILE=$PWD/extra/fonts.conf poetry run python -m tle
 
     (( $? != 42 )) && break
 

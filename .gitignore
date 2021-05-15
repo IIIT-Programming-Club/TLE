@@ -90,7 +90,7 @@ venv/
 ENV/
 env.bak/
 venv.bak/
-secrets
+environment
 
 # Spyder project settings
 .spyderproject
@@ -113,8 +113,6 @@ pip-wheel-metadata/
 
 # data
 /data
-start
-ranklist.png
 
 # logs
 /logs

@@ -29,10 +29,8 @@ class Contestant:
 class CodeforcesRatingCalculator:
     def __init__(self, standings):
         """Calculate Codeforces rating changes and seeds given contest and user information."""
-        self.contestants = [
-            Contestant(handle, points, penalty, rating)
-            for handle, points, penalty, rating in standings
-        ]
+        self.contestants = [Contestant(handle, points, penalty, rating)
+                            for handle, points, penalty, rating in standings]
         self._precalc_seed()
         self._reassign_ranks()
         self._process()
@@ -40,10 +38,7 @@ class CodeforcesRatingCalculator:
 
     def calculate_rating_changes(self):
         """Return a mapping between contestants and their corresponding delta."""
-        return {
-            contestant.party: contestant.delta
-            for contestant in self.contestants
-        }
+        return {contestant.party: contestant.delta for contestant in self.contestants}
 
     def get_seed(self, rating, me=None):
         """Get seed given a rating and user."""
@@ -56,9 +51,7 @@ class CodeforcesRatingCalculator:
         MAX = 6144
 
         # Precompute the ELO win probability for all possible rating differences.
-        self.elo_win_prob = np.roll(
-            1 / (1 + pow(10, np.arange(-MAX, MAX) / 400)), -MAX
-        )
+        self.elo_win_prob = np.roll(1 / (1 + pow(10, np.arange(-MAX, MAX) / 400)), -MAX)
 
         # Compute the rating histogram.
         count = np.zeros(2 * MAX)
@@ -74,10 +67,7 @@ class CodeforcesRatingCalculator:
         contestants.sort(key=lambda o: (-o.points, o.penalty))
         points = penalty = rank = None
         for i in reversed(range(len(contestants))):
-            if (
-                contestants[i].points != points
-                or contestants[i].penalty != penalty
-            ):
+            if contestants[i].points != points or contestants[i].penalty != penalty:
                 rank = i + 1
                 points = contestants[i].points
                 penalty = contestants[i].penalty

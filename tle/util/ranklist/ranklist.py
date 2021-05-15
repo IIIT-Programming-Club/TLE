@@ -1,6 +1,7 @@
 from discord.ext import commands
 
 from tle.util.ranklist.rating_calculator import CodeforcesRatingCalculator
+from tle.util.handledict import HandleDict
 
 
 class RanklistError(commands.CommandError):
@@ -12,24 +13,18 @@ class RanklistError(commands.CommandError):
 
 class ContestNotRatedError(RanklistError):
     def __init__(self, contest):
-        super().__init__(contest, f"`{contest.name}` is not rated")
+        super().__init__(contest, f'`{contest.name}` is not rated')
 
 
 class HandleNotPresentError(RanklistError):
     def __init__(self, contest, handle):
-        super().__init__(
-            contest,
-            f"Handle `{handle}`` not present in standings of `{contest.name}`",
-        )
+        super().__init__(contest, f'Handle `{handle}`` not present in standings of `{contest.name}`')
         self.handle = handle
 
 
 class DeltasNotPresentError(RanklistError):
     def __init__(self, contest):
-        super().__init__(
-            contest,
-            f"Rating changes for `{contest.name}` not calculated or set.",
-        )
+        super().__init__(contest, f'Rating changes for `{contest.name}` not calculated or set.')
 
 
 class Ranklist:
@@ -41,7 +36,7 @@ class Ranklist:
 
         self.is_rated = is_rated
 
-        self.standing_by_id = {}
+        self.standing_by_id = HandleDict()
         for row in self.standings:
             if row.party.ghost:
                 # Apparently ghosts don't have team ID.
@@ -57,21 +52,16 @@ class Ranklist:
         if not self.is_rated:
             raise ContestNotRatedError(self.contest)
         self.delta_by_handle = delta_by_handle.copy()
-        self.deltas_status = "Final"
+        self.deltas_status = 'Final'
 
     def predict(self, current_rating):
         if not self.is_rated:
             raise ContestNotRatedError(self.contest)
-        standings = [
-            (id_, row.points, row.penalty, current_rating[id_])
-            for id_, row in self.standing_by_id.items()
-            if id_ in current_rating
-        ]
+        standings = [(id_, row.points, row.penalty, current_rating[id_])
+                     for id_, row in self.standing_by_id.items() if id_ in current_rating]
         if standings:
-            self.delta_by_handle = CodeforcesRatingCalculator(
-                standings
-            ).calculate_rating_changes()
-        self.deltas_status = "Predicted"
+            self.delta_by_handle = CodeforcesRatingCalculator(standings).calculate_rating_changes()
+        self.deltas_status = 'Predicted'
 
     def get_delta(self, handle):
         if not self.is_rated:
