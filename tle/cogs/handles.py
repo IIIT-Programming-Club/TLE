@@ -694,6 +694,9 @@ class Handles(commands.Cog):
             and handle in handle_to_member
         ]
 
+        member_change_pairs.sort(
+            key=lambda pair: pair[1].newRating - pair[1].oldRating, reverse=True
+        )
         top_increases_str = []
         for member, change in member_change_pairs[:_TOP_DELTAS_COUNT]:
             delta = change.newRating - change.oldRating
