@@ -34,6 +34,7 @@ _PRETTY_HANDLES_PER_PAGE = 10
 _TOP_DELTAS_COUNT = 5
 _UPDATE_HANDLE_STATUS_INTERVAL = 6 * 60 * 60  # 6 hours
 _MAX_RATING_CHANGES_PER_EMBED = 15
+_MAX_TOP_RANKS = 5
 
 
 class HandleCogError(commands.CommandError):
@@ -303,7 +304,11 @@ class Handles(commands.Cog):
             channel = guild.get_channel(channel_id)
             if channel is not None:
                 with contextlib.suppress(HandleCogError):
-                    embeds = self._make_rankup_embed(guild, contest, change_by_handle)
+                    # most likely the ranklist exists
+                    ranklist = cf_common.cache2.ranklist_cache.get_ranklist(contest)
+                    embeds = self._make_rankup_embed(
+                        guild, contest, change_by_handle, ranklist
+                    )
                     for embed in embeds:
                         await channel.send(embed=embed)
 
@@ -622,30 +627,29 @@ class Handles(commands.Cog):
             )
 
     @staticmethod
-    def _make_rankup_embed(guild, contest, change_by_handle):
-        """Make an embed containing a list of rank changes and top rating increases for the members
-        of this guild.
+    def _make_rankup_embed(guild, contest, change_by_handle, ranklist):
+        """Make an embed containing a list of rank changes and top ranks (official/unofficial)
+        for the members of this guild.
         """
         user_id_handle_pairs = cf_common.user_db.get_handles_for_guild(guild.id)
         member_handle_pairs = [
             (guild.get_member(int(user_id)), handle)
             for user_id, handle in user_id_handle_pairs
         ]
-
-        def ispurg(member):
-            # TODO: temporary code, todo properly later
-            return any(role.name == "Purgatory" for role in member.roles)
+        handle_to_member = {
+            handle: member
+            for member, handle in member_handle_pairs
+            if member is not None
+        }
 
         member_change_pairs = [
             (member, change_by_handle[handle])
             for member, handle in member_handle_pairs
-            if member is not None and handle in change_by_handle and not ispurg(member)
+            if member is not None and handle in change_by_handle
         ]
-        if not member_change_pairs:
-            raise HandleCogError(
-                f"Contest `{contest.id} | {contest.name}` was not rated for any "
-                "member of this server."
-            )
+
+        # We can also display unofficial top 5 ranks
+        # even if member_change_pairs is empty
 
         member_change_pairs.sort(key=lambda pair: pair[1].newRating, reverse=True)
         rank_to_role = {role.name: role for role in guild.roles}
@@ -674,9 +678,22 @@ class Handles(commands.Cog):
                 )
                 rank_changes_str.append(rank_change_str)
 
-        member_change_pairs.sort(
-            key=lambda pair: pair[1].newRating - pair[1].oldRating, reverse=True
-        )
+        participant_handles = [
+            (
+                rankrow.party.members[0].handle,
+                rankrow.party.participantType,
+                rankrow.rank,
+            )
+            for rankrow in ranklist.standings
+        ]
+
+        participant_member_handles = [
+            (handle_to_member[handle], handle, rank, part_type == "CONTESTANT")
+            for handle, part_type, rank in participant_handles
+            if (part_type == "CONTESTANT" or part_type == "OUT_OF_COMPETITION")
+            and handle in handle_to_member
+        ]
+
         top_increases_str = []
         for member, change in member_change_pairs[:_TOP_DELTAS_COUNT]:
             delta = change.newRating - change.oldRating
@@ -688,6 +705,16 @@ class Handles(commands.Cog):
                 f"{change.newRating}"
             )
             top_increases_str.append(increase_str)
+
+        top_ranks_str = []
+        top_ranks_str_official = []
+        for member, handle, rank, is_official in participant_member_handles:
+            mention_str = f"{member.mention} [{handle}]({cf.PROFILE_BASE_URL}{handle}): rank {rank}"
+
+            if len(top_ranks_str) < _MAX_TOP_RANKS:
+                top_ranks_str.append(mention_str)
+            if len(top_ranks_str_official) < _MAX_TOP_RANKS and is_official:
+                top_ranks_str_official.append(mention_str)
 
         # Could be written with a one-liner with or
         if not rank_changes_str:
@@ -738,6 +765,38 @@ class Handles(commands.Cog):
         )
         top_rating_increases_embed.set_author(name="Top rating increases")
         embeds.append(top_rating_increases_embed)
+
+        def make_best_ranks_embed(official):
+            top_ranks_list = top_ranks_str_official if official else top_ranks_str
+            emoji = ":partying_face:" if official else ":raised_hands:"
+            title = "Top five ranks " + ("(official)" if official else "(all)")
+            title_use = f"{title} {emoji}"
+
+            # make the embed object
+            embed_obj = discord_common.cf_color_embed_fixed(
+                description="\n".join(top_ranks_list)
+                or "Nobody participated in todays contest :(",
+                title=title_use,
+                seed=embed_color_seed,
+            )
+            cong_strings = [
+                "Join me in congratulating...",
+                "Let us congratulate...",
+                "Welcoming our warriors...",
+                "Rocking today's contest are...",
+                "Stupendous performance today by...",
+            ]
+
+            cong_string = random.choice(cong_strings)
+            embed_obj.set_author(name=cong_string)
+            return embed_obj
+
+        top_five_ranks_official = make_best_ranks_embed(official=True)
+        top_five_ranks_unofficial = make_best_ranks_embed(official=False)
+
+        embeds.append(top_five_ranks_official)
+        embeds.append(top_five_ranks_unofficial)
+
         return embeds
 
     @commands.group(brief="Commands for role updates", invoke_without_command=True)
@@ -832,8 +891,17 @@ class Handles(commands.Cog):
                 f"{contest.name}`."
             )
 
+        try:
+            ranklist = cf_common.cache2.ranklist_cache.get_ranklist(contest)
+        except cache_system2.RanklistNotMonitored:
+            ranklist = await cf_common.cache2.ranklist_cache.generate_ranklist(
+                contest.id, fetch_changes=True
+            )
+
         change_by_handle = {change.handle: change for change in changes}
-        rankup_embeds = self._make_rankup_embed(ctx.guild, contest, change_by_handle)
+        rankup_embeds = self._make_rankup_embed(
+            ctx.guild, contest, change_by_handle, ranklist
+        )
         for rankup_embed in rankup_embeds:
             await ctx.channel.send(embed=rankup_embed)
 
