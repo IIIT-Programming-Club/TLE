@@ -1,4 +1,4 @@
 #!/bin/bash
 
-source .env/bin/activate
-./run.sh >/dev/null 2>/dev/null &
+source /root/TLE/venv/bin/activate
+/root/TLE/run.sh
