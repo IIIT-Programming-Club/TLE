@@ -13,6 +13,7 @@ from discord.ext import commands
 
 from tle.cogs.codeforces import CodeforcesCogError
 from tle.util import codeforces_common as cf_common
+from tle.util import codeforces_api as cf
 from tle.util import cache_system2
 from tle.util import db
 from tle.util import discord_common
@@ -28,7 +29,6 @@ _STANDINGS_PER_PAGE = 15
 _STANDINGS_PAGINATE_WAIT_TIME = 2 * 60
 _FINISHED_CONTESTS_LIMIT = 5
 _TOP_PARTICIPANTS_SHOWN = 5
-
 
 class ContestCogError(commands.CommandError):
     pass
@@ -707,15 +707,35 @@ class Contests(commands.Cog):
                 await wait_msg.delete()
             except:
                 pass
+            
+        user_id_handle_pairs = cf_common.user_db.get_handles_for_guild(ctx.guild.id)
+        member_handle_pairs = [
+            (ctx.guild.get_member(int(user_id)), handle)
+            for user_id, handle in user_id_handle_pairs
+        ]
+        handle_to_member = {
+            handle: member
+            for member, handle in member_handle_pairs
+            if member is not None
+        }
 
         embed_color_seed = random.randrange(0, 100)
-        display_month = timed_month[0].upper() + timed_month[1:].replace("-", " ")
-        embed_obj = discord_common.cf_color_embed_fixed(
-            description="\n".join([str(count) + " " + handle for count, handle in handle_contest_count]),
-            title="Top 5 most contests given in " + display_month,
-            seed=embed_color_seed,
-        )
-        await ctx.channel.send(embed=embed_obj)
+        display_month = start_timestamp.strftime("%B") + " " + str(year)
+        embed_title = "Top 5 most contests given in " + display_month
+        descriptions = []
+
+        for count, handle in handle_contest_count[:3]:
+            if count == 0:
+                break
+            member = handle_to_member[handle]
+            mention_str = f"{member.mention} [{handle}]({cf.PROFILE_BASE_URL}{handle}): {count} contests"
+            descriptions.append(mention_str)
+
+        embed = discord.Embed(title=embed_title, color=embed_color_seed, description="\n".join(descriptions))
+        embed.set_author(name="Codeforces")
+        embed.set_thumbnail(
+            url="https://storage.googleapis.com/kaggle-datasets-images/742290/1285655/87aed221116e8abb4e01e98b15fd5b75/dataset-card.png?t=2020-06-28-00-49-57")
+        await ctx.channel.send(embed=embed)
 
     @discord_common.send_error_if(
         ContestCogError,
