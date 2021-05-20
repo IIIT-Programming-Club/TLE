@@ -349,7 +349,7 @@ class Handles(commands.Cog):
         users = await cf.user.info(handles=[handle])
         await self._set(ctx, member, users[0])
 
-    async def _set(self, ctx, member, user):
+    def _set_update(self, ctx, member, user):
         handle = user.handle
         try:
             cf_common.user_db.set_handle(member.id, ctx.guild.id, handle)
@@ -359,6 +359,9 @@ class Handles(commands.Cog):
             )
         cf_common.user_db.cache_cf_user(user)
 
+    async def _set_with_role(
+        self, ctx, member, user, update_reason="New handle set for user"
+    ):
         if user.rank == cf.UNRATED_RANK:
             role_title = "Newbie"
         else:
@@ -371,11 +374,13 @@ class Handles(commands.Cog):
             )
         role_to_assign = roles[0]
 
-        await self.update_member_rank_role(
-            member, role_to_assign, reason="New handle set for user"
-        )
+        await self.update_member_rank_role(member, role_to_assign, reason=update_reason)
         embed = _make_profile_embed(member, user, mode="set")
         await ctx.send(embed=embed)
+
+    async def _set(self, ctx, member, user):
+        self._set_update(ctx, member, user)
+        await self._set_with_role(ctx, member, user)
 
     @handle.command(brief="Identify yourself", usage="[handle]")
     @cf_common.user_guard(
@@ -387,10 +392,9 @@ class Handles(commands.Cog):
     async def identify(self, ctx, handle: str):
         """Link a codeforces account to discord account by submitting a compile error to a random problem"""
         if cf_common.user_db.get_handle(ctx.author.id, ctx.guild.id):
-            raise HandleCogError(
-                f"{ctx.author.mention}, you cannot identify when your handle is "
-                "already set. Ask an Admin if you wish to change it"
-            )
+            users = await cf.user.info(handles=[handle])
+            await self._set_with_role(ctx, ctx.author, users[0], "User reidentified")
+            return
 
         if cf_common.user_db.get_user_id(handle, ctx.guild.id):
             raise HandleCogError(
