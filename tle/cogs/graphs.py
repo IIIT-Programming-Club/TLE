@@ -231,17 +231,22 @@ def _plot_average(practice, bin_size, label: str = ""):
             label=label,
         )
 
-def _mention_to_handle(args,ctx):
+def _mention_to_handle(args, ctx):
+    new_args = []
+
     for x in args:
-        if x.startswith('<@!') :
-            linked_acc = cf_common.user_db.get_handle(x[3:-1],ctx.guild.id)
+        if x.startswith("<@!"):
+            linked_acc = cf_common.user_db.get_handle(x[3:-1], ctx.guild.id)
             if not linked_acc:
                 raise GraphCogError(
                     f"Handle for <@!{x[3:-1]}> not found in database"
                 )
             else:
-                x = linked_acc
-    return args
+                new_args.insert(len(new_args), linked_acc)
+        else:
+            new_args.insert(len(new_args), x)
+
+    return new_args
 
 class Graphs(commands.Cog):
     def __init__(self, bot):
