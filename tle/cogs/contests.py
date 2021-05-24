@@ -30,6 +30,7 @@ _STANDINGS_PAGINATE_WAIT_TIME = 2 * 60
 _FINISHED_CONTESTS_LIMIT = 5
 _TOP_PARTICIPANTS_SHOWN = 5
 
+
 class ContestCogError(commands.CommandError):
     pass
 
@@ -596,6 +597,7 @@ class Contests(commands.Cog):
     @commands.command(
         brief="Show server members participation statistics", usage="[month] [handles]"
     )
+    @commands.has_role("Admin", "bot-admin")
     async def serverstat(self, ctx, timed_month: str = "", *handles: str):
         """
         Show server member participation statistics for the given month. If handles contains
@@ -669,11 +671,15 @@ class Contests(commands.Cog):
 
         # we have to count number of contests users gave in the range from start to end timestamp
 
-        finished_contests = cf_common.cache2.contest_cache.get_contests_in_phase("FINISHED")
+        finished_contests = cf_common.cache2.contest_cache.get_contests_in_phase(
+            "FINISHED"
+        )
         contests_usable = [
             contest
             for contest in finished_contests
-            if start_seconds <= contest.startTimeSeconds + contest.durationSeconds < end_seconds
+            if start_seconds
+            <= contest.startTimeSeconds + contest.durationSeconds
+            < end_seconds
         ]
 
         async def get_standings(contest):
@@ -686,28 +692,117 @@ class Contests(commands.Cog):
             return ranklist
 
         wait_msg = await ctx.send("Please wait...")
-        contest_standings = [await get_standings(contest) for contest in contests_usable]
 
-        def count_contest(cf_handle):
-            return sum(
-                [
-                    1 if cf_handle in ranklist.standing_by_id else 0
-                    for ranklist in contest_standings
-                ]
+        """
+        Figure out how caching works. Ideally, we should store ranklists and rating changes
+        in cache and then fetch directly from cache.
+        """
+        contest_standings = [
+            await get_standings(contest) for contest in contests_usable
+        ]
+        contest_rating_changes = [
+            cf_common.cache2.rating_changes_cache.get_rating_changes_for_contest(
+                contest.id
+            )
+            for contest in contests_usable
+        ]
+
+        class HandleContestData:
+            def __init__(self, handle):
+                self.handle = handle
+                # includes official, unofficial
+                self.contest_count = 0
+                self.rated_count = 0
+                # div2, div1
+                self.rating_inc = 0
+                self.average_rating = 0
+
+            def update_with_ranklist(self, ranklist):
+                if self.handle not in ranklist.standing_by_id:
+                    return
+
+                self.contest_count += 1
+
+            def update_with_rating_change(self, rating_change):
+                def score_delta(oldRating, delta):
+                    multiplier = {1000: 1.2, 1500: 1.4, 1800: 1.6, 2100: 1.8, 2400: 2}
+                    mult = 1
+                    cumulative = 1
+                    for rating in range(0, 3000, 100):
+                        if rating in multiplier:
+                            mult = multiplier[rating]
+                        cumulative *= mult
+                        if oldRating >= rating:
+                            return cumulative * delta
+
+                for change in rating_change:
+                    if change.handle == self.handle:
+                        self.rated_count += 1
+                        old, new = change.oldRating, change.newRating
+                        self.average_rating += new
+                        delta = new - old
+                        if delta > 0:
+                            self.rating_inc += score_delta(old, delta)
+
+            def finalize(self):
+                if self.rated_count == 0:
+                    return
+                self.average_rating /= self.rated_count
+
+        handle_contest_data = []
+
+        for handle in handles:
+            obj = HandleContestData(handle)
+            for ranklist in contest_standings:
+                obj.update_with_ranklist(ranklist)
+            for rating_change in contest_rating_changes:
+                obj.update_with_rating_change(rating_change)
+            handle_contest_data.append(obj)
+
+        for data in handle_contest_data:
+            data.finalize()
+
+        def division_based_statistics(div_num):
+            thresholds = {1: [2100, 3000], 2: [1600, 2100], 3: [0, 1600]}
+            t_low, t_high = thresholds[div_num]
+            # minimum number of rated contests required in given month
+            count_requirement = {1: 2, 2: 3, 3: 5}
+            rated_contest_req = count_requirement[div_num]
+            usable_data = list(
+                filter(
+                    lambda data: t_low <= data.average_rating < t_high
+                    and data.rated_count >= rated_contest_req,
+                    handle_contest_data,
+                )
             )
 
-        handle_contest_count = sorted(
-            [(count_contest(handle), handle) for handle in handles],
-            key=lambda x: x[0],
-            reverse=True,
-        )[:_TOP_PARTICIPANTS_SHOWN]
+            def sort_helper(sort_lambda):
+                return sorted(
+                    usable_data,
+                    key=sort_lambda,
+                    reverse=True,
+                )[:_TOP_PARTICIPANTS_SHOWN]
+
+            handle_contest_count = sort_helper(lambda x: x.rated_count)
+            highest_avg_rating = sort_helper(lambda x: x.average_rating)
+            highest_rating_inc = sort_helper(lambda x: x.rating_inc)
+
+            handle_contest_count = [
+                (x.handle, x.rated_count) for x in handle_contest_count
+            ]
+            highest_avg_rating = [
+                (x.handle, x.average_rating) for x in highest_avg_rating
+            ]
+            highest_rating_inc = [(x.handle, x.rating_inc) for x in highest_rating_inc]
+
+            return handle_contest_count, highest_avg_rating, highest_rating_inc
 
         if wait_msg:
             try:
                 await wait_msg.delete()
             except:
                 pass
-            
+
         user_id_handle_pairs = cf_common.user_db.get_handles_for_guild(ctx.guild.id)
         member_handle_pairs = [
             (ctx.guild.get_member(int(user_id)), handle)
@@ -721,21 +816,50 @@ class Contests(commands.Cog):
 
         embed_color_seed = random.randrange(0, 100)
         display_month = start_timestamp.strftime("%B") + " " + str(year)
-        embed_title = "Top 5 most contests given in " + display_month
-        descriptions = []
 
-        for count, handle in handle_contest_count[:3]:
-            if count == 0:
-                break
-            member = handle_to_member[handle]
-            mention_str = f"{member.mention} [{handle}]({cf.PROFILE_BASE_URL}{handle}): {count} contests"
-            descriptions.append(mention_str)
+        for div_num in range(1, 4):
 
-        embed = discord.Embed(title=embed_title, color=embed_color_seed, description="\n".join(descriptions))
-        embed.set_author(name="Codeforces")
-        embed.set_thumbnail(
-            url="https://storage.googleapis.com/kaggle-datasets-images/742290/1285655/87aed221116e8abb4e01e98b15fd5b75/dataset-card.png?t=2020-06-28-00-49-57")
-        await ctx.channel.send(embed=embed)
+            def make_embed(embed_title, data_list, residual):
+                descriptions = []
+
+                for handle, count in data_list:
+                    if count == 0:
+                        break
+                    member = handle_to_member[handle]
+                    mention_str = f"{member.mention} [{handle}]({cf.PROFILE_BASE_URL}{handle}): {count} {residual}"
+                    descriptions.append(mention_str)
+
+                embed = discord.Embed(
+                    title=embed_title,
+                    color=embed_color_seed,
+                    description="\n".join(descriptions),
+                )
+                embed.set_author(name="Codeforces")
+                embed.set_thumbnail(
+                    url="https://storage.googleapis.com/kaggle-datasets-images/742290/1285655/87aed221116e8abb4e01e98b15fd5b75/dataset-card.png?t=2020-06-28-00-49-57"
+                )
+                await ctx.channel.send(embed=embed)
+
+            (
+                most_contests,
+                highest_avg_rating,
+                highest_rating_inc,
+            ) = division_based_statistics(div_num)
+
+            trailing_note = f"in {display_month} (Div. {div_num})"
+            make_embed(
+                f"Most contests given {trailing_note}", most_contests, "contests"
+            )
+            make_embed(
+                f"Highest average rating {trailing_note}",
+                highest_avg_rating,
+                "avg rating",
+            )
+            make_embed(
+                f"Highest rating increases {trailing_note}",
+                highest_rating_inc,
+                "calculated rating inc",
+            )
 
     @discord_common.send_error_if(
         ContestCogError,
