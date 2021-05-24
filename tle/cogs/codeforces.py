@@ -39,7 +39,7 @@ def _mention_to_handle(args, ctx):
                 )
             else:
                 x = linked_acc
-
+    return args
 
 class Codeforces(commands.Cog):
     def __init__(self, bot):
