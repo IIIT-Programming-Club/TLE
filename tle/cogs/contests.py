@@ -28,7 +28,7 @@ _CONTEST_PAGINATE_WAIT_TIME = 5 * 60
 _STANDINGS_PER_PAGE = 15
 _STANDINGS_PAGINATE_WAIT_TIME = 2 * 60
 _FINISHED_CONTESTS_LIMIT = 5
-_TOP_PARTICIPANTS_SHOWN = 5
+_TOP_PARTICIPANTS_SHOWN = 3
 
 
 class ContestCogError(commands.CommandError):
@@ -710,6 +710,7 @@ class Contests(commands.Cog):
                 # div2, div1
                 self.rating_inc = 0
                 self.average_rating = 0
+                self.problems_solved = 0
 
             def update_with_ranklist(self, ranklist):
                 if self.handle not in ranklist.standing_by_id:
@@ -729,13 +730,26 @@ class Contests(commands.Cog):
                     if delta > 0:
                         self.rating_inc += delta
 
+            async def count_problems_solved(self):
+                submissions = await cf.user.status(handle=self.handle)
+                self.problems_solved = len(
+                    set(
+                        [
+                            f"{sub.contestId}{sub.problem}"
+                            for sub in submissions
+                            if sub.verdict == "OK"
+                            and start_seconds <= sub.creationTimeSeconds < end_seconds
+                        ]
+                    )
+                )
+
             def finalize(self):
                 if self.rated_count == 0:
                     return
                 self.average_rating /= self.rated_count
 
             def __str__(self):
-                return f"{self.handle}: {self.contest_count} {self.rated_count} {self.rating_inc} {self.average_rating}"
+                return f"{self.handle}: {self.contest_count} {self.rated_count} {self.rating_inc} {self.average_rating} {self.problems_solved}"
 
         handle_contest_data = []
 
@@ -743,22 +757,24 @@ class Contests(commands.Cog):
             obj = HandleContestData(handle)
             for ranklist in contest_standings:
                 obj.update_with_ranklist(ranklist)
+            await obj.count_problems_solved()
             handle_contest_data.append(obj)
 
         for data in handle_contest_data:
             data.finalize()
+        for data in handle_contest_data[:30]:
             print(str(data))
 
         def division_based_statistics(div_num):
             thresholds = {1: [2100, 3000], 2: [1600, 2100], 3: [0, 1600]}
             t_low, t_high = thresholds[div_num]
             # minimum number of rated contests required in given month
-            count_requirement = {1: 2, 2: 3, 3: 5}
-            rated_contest_req = count_requirement[div_num]
-            # and data.rated_count >= rated_contest_req,
+            count_requirement = {1: 1, 2: 2, 3: 3}
+            rated_contest_req = 0  # count_requirement[div_num]
             usable_data = list(
                 filter(
-                    lambda data: t_low <= data.average_rating < t_high,
+                    lambda data: t_low <= data.average_rating < t_high
+                    and data.rated_count >= rated_contest_req,
                     handle_contest_data,
                 )
             )
@@ -773,6 +789,7 @@ class Contests(commands.Cog):
             handle_contest_count = sort_helper(lambda x: x.rated_count)
             highest_avg_rating = sort_helper(lambda x: x.average_rating)
             highest_rating_inc = sort_helper(lambda x: x.rating_inc)
+            most_problems_solved = sort_helper(lambda x: x.problems_solved)
 
             handle_contest_count = [
                 (x.handle, x.rated_count) for x in handle_contest_count
@@ -782,7 +799,16 @@ class Contests(commands.Cog):
             ]
             highest_rating_inc = [(x.handle, x.rating_inc) for x in highest_rating_inc]
 
-            return handle_contest_count, highest_avg_rating, highest_rating_inc
+            most_problems_solved = [
+                (x.handle, x.problems_solved) for x in most_problems_solved
+            ]
+
+            return (
+                handle_contest_count,
+                highest_avg_rating,
+                highest_rating_inc,
+                most_problems_solved,
+            )
 
         if wait_msg:
             try:
@@ -827,7 +853,7 @@ class Contests(commands.Cog):
                     descriptions.append(mention_str)
 
                 if not descriptions:
-                    value = "Not enough participants :("
+                    value = "Not enough participants"
                 else:
                     value = "\n".join(descriptions)
 
@@ -837,6 +863,7 @@ class Contests(commands.Cog):
                 most_contests,
                 highest_avg_rating,
                 highest_rating_inc,
+                most_problems_solved,
             ) = division_based_statistics(div_num)
 
             mc_title = "Most contests given"
@@ -849,7 +876,13 @@ class Contests(commands.Cog):
             make_embed(
                 hr_title,
                 highest_rating_inc,
-                "calculated rating inc",
+                "points",
+            )
+            mp_title = "Most problems solved"
+            make_embed(
+                mp_title,
+                most_problems_solved,
+                "problems",
             )
 
             await ctx.channel.send(embed=embed)
