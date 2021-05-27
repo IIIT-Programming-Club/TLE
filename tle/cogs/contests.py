@@ -717,24 +717,6 @@ class Contests(commands.Cog):
 
                 self.contest_count += 1
 
-                def score_delta(oldRating, delta):
-                    multiplier = {
-                        1000: 1.05,
-                        1500: 1.10,
-                        1800: 1.15,
-                        2100: 1.20,
-                        2400: 1.3,
-                    }
-                    mult = 1
-                    cumulative = 1
-
-                    for rating in range(0, 3000, 100):
-                        if rating in multiplier:
-                            mult = multiplier[rating]
-                        cumulative *= mult
-                        if oldRating >= rating and oldRating < rating + 100:
-                            return cumulative * delta
-
                 if (
                     ranklist.changes_by_handle
                     and self.handle in ranklist.changes_by_handle
@@ -745,7 +727,7 @@ class Contests(commands.Cog):
                     self.average_rating += new
                     delta = new - old
                     if delta > 0:
-                        self.rating_inc += score_delta(old, delta)
+                        self.rating_inc += delta
 
             def finalize(self):
                 if self.rated_count == 0:
