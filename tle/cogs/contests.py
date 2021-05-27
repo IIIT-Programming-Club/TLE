@@ -757,7 +757,7 @@ class Contests(commands.Cog):
             obj = HandleContestData(handle)
             for ranklist in contest_standings:
                 obj.update_with_ranklist(ranklist)
-            await obj.count_problems_solved()
+            # await obj.count_problems_solved()
             handle_contest_data.append(obj)
 
         for data in handle_contest_data:
@@ -878,12 +878,12 @@ class Contests(commands.Cog):
                 highest_rating_inc,
                 "points",
             )
-            mp_title = "Most problems solved"
-            make_embed(
-                mp_title,
-                most_problems_solved,
-                "problems",
-            )
+            # mp_title = "Most problems solved"
+            # make_embed(
+            #     mp_title,
+            #     most_problems_solved,
+            #     "problems",
+            # )
 
             await ctx.channel.send(embed=embed)
 
