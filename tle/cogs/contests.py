@@ -597,7 +597,7 @@ class Contests(commands.Cog):
     @commands.command(
         brief="Show server members participation statistics", usage="[month] [handles]"
     )
-    @commands.has_role("Admin", "bot-admin")
+    @commands.has_role("Admin")
     async def serverstat(self, ctx, timed_month: str = "", *handles: str):
         """
         Show server member participation statistics for the given month. If handles contains
@@ -700,12 +700,6 @@ class Contests(commands.Cog):
         contest_standings = [
             await get_standings(contest) for contest in contests_usable
         ]
-        contest_rating_changes = [
-            cf_common.cache2.rating_changes_cache.get_rating_changes_for_contest(
-                contest.id
-            )
-            for contest in contests_usable
-        ]
 
         class HandleContestData:
             def __init__(self, handle):
@@ -723,31 +717,43 @@ class Contests(commands.Cog):
 
                 self.contest_count += 1
 
-            def update_with_rating_change(self, rating_change):
                 def score_delta(oldRating, delta):
-                    multiplier = {1000: 1.2, 1500: 1.4, 1800: 1.6, 2100: 1.8, 2400: 2}
+                    multiplier = {
+                        1000: 1.05,
+                        1500: 1.10,
+                        1800: 1.15,
+                        2100: 1.20,
+                        2400: 1.3,
+                    }
                     mult = 1
                     cumulative = 1
+
                     for rating in range(0, 3000, 100):
                         if rating in multiplier:
                             mult = multiplier[rating]
                         cumulative *= mult
-                        if oldRating >= rating:
+                        if oldRating >= rating and oldRating < rating + 100:
                             return cumulative * delta
 
-                for change in rating_change:
-                    if change.handle == self.handle:
-                        self.rated_count += 1
-                        old, new = change.oldRating, change.newRating
-                        self.average_rating += new
-                        delta = new - old
-                        if delta > 0:
-                            self.rating_inc += score_delta(old, delta)
+                if (
+                    ranklist.changes_by_handle
+                    and self.handle in ranklist.changes_by_handle
+                ):
+                    change = ranklist.changes_by_handle[self.handle]
+                    self.rated_count += 1
+                    old, new = change.oldRating, change.newRating
+                    self.average_rating += new
+                    delta = new - old
+                    if delta > 0:
+                        self.rating_inc += score_delta(old, delta)
 
             def finalize(self):
                 if self.rated_count == 0:
                     return
                 self.average_rating /= self.rated_count
+
+            def __str__(self):
+                return f"{self.handle}: {self.contest_count} {self.rated_count} {self.rating_inc} {self.average_rating}"
 
         handle_contest_data = []
 
@@ -755,12 +761,11 @@ class Contests(commands.Cog):
             obj = HandleContestData(handle)
             for ranklist in contest_standings:
                 obj.update_with_ranklist(ranklist)
-            for rating_change in contest_rating_changes:
-                obj.update_with_rating_change(rating_change)
             handle_contest_data.append(obj)
 
         for data in handle_contest_data:
             data.finalize()
+            print(str(data))
 
         def division_based_statistics(div_num):
             thresholds = {1: [2100, 3000], 2: [1600, 2100], 3: [0, 1600]}
@@ -768,10 +773,10 @@ class Contests(commands.Cog):
             # minimum number of rated contests required in given month
             count_requirement = {1: 2, 2: 3, 3: 5}
             rated_contest_req = count_requirement[div_num]
+            # and data.rated_count >= rated_contest_req,
             usable_data = list(
                 filter(
-                    lambda data: t_low <= data.average_rating < t_high
-                    and data.rated_count >= rated_contest_req,
+                    lambda data: t_low <= data.average_rating < t_high,
                     handle_contest_data,
                 )
             )
@@ -814,31 +819,37 @@ class Contests(commands.Cog):
             if member is not None
         }
 
-        embed_color_seed = random.randrange(0, 100)
         display_month = start_timestamp.strftime("%B") + " " + str(year)
 
         for div_num in range(1, 4):
+            embed_color_seed = random.randrange(0, 100)
+            embed = discord.Embed(
+                title=f"Server stats for {display_month} (Div. {div_num})",
+                color=embed_color_seed,
+            )
+
+            embed.set_author(name="Codeforces")
+            embed.set_thumbnail(
+                url="https://storage.googleapis.com/kaggle-datasets-images/742290/1285655/87aed221116e8abb4e01e98b15fd5b75/dataset-card.png?t=2020-06-28-00-49-57"
+            )
 
             def make_embed(embed_title, data_list, residual):
                 descriptions = []
 
                 for handle, count in data_list:
-                    if count == 0:
+                    cnt = int(count)
+                    if cnt == 0:
                         break
                     member = handle_to_member[handle]
-                    mention_str = f"{member.mention} [{handle}]({cf.PROFILE_BASE_URL}{handle}): {count} {residual}"
+                    mention_str = f"{member.mention} [{handle}]({cf.PROFILE_BASE_URL}{handle}): {cnt} {residual}"
                     descriptions.append(mention_str)
 
-                embed = discord.Embed(
-                    title=embed_title,
-                    color=embed_color_seed,
-                    description="\n".join(descriptions),
-                )
-                embed.set_author(name="Codeforces")
-                embed.set_thumbnail(
-                    url="https://storage.googleapis.com/kaggle-datasets-images/742290/1285655/87aed221116e8abb4e01e98b15fd5b75/dataset-card.png?t=2020-06-28-00-49-57"
-                )
-                await ctx.channel.send(embed=embed)
+                if not descriptions:
+                    value = "Not enough participants :("
+                else:
+                    value = "\n".join(descriptions)
+
+                embed.add_field(name=embed_title, value=value, inline=False)
 
             (
                 most_contests,
@@ -846,20 +857,20 @@ class Contests(commands.Cog):
                 highest_rating_inc,
             ) = division_based_statistics(div_num)
 
-            trailing_note = f"in {display_month} (Div. {div_num})"
+            mc_title = "Most contests given"
+            make_embed(mc_title, most_contests, "contests")
+
+            ha_title = "Highest average rating"
+            make_embed(ha_title, highest_avg_rating, "avg rating")
+
+            hr_title = "Highest rating increases"
             make_embed(
-                f"Most contests given {trailing_note}", most_contests, "contests"
-            )
-            make_embed(
-                f"Highest average rating {trailing_note}",
-                highest_avg_rating,
-                "avg rating",
-            )
-            make_embed(
-                f"Highest rating increases {trailing_note}",
+                hr_title,
                 highest_rating_inc,
                 "calculated rating inc",
             )
+
+            await ctx.channel.send(embed=embed)
 
     @discord_common.send_error_if(
         ContestCogError,

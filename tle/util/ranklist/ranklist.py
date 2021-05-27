@@ -52,6 +52,10 @@ class Ranklist:
 
         self.delta_by_handle = None
         self.deltas_status = None
+        self.changes_by_handle = None
+
+    def set_changes(self, changes_by_handle):
+        self.changes_by_handle = changes_by_handle
 
     def set_deltas(self, delta_by_handle):
         if not self.is_rated:
