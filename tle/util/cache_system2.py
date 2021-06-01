@@ -14,7 +14,7 @@ from tle.util.ranklist import Ranklist
 
 logger = logging.getLogger(__name__)
 
-CONTEST_BLACKLIST = {1308, 1309, 1431, 1432, 1522, 1524}
+CONTEST_BLACKLIST = {1308, 1309, 1431, 1432, 1522, 1524, 1531}
 
 
 def _is_blacklisted(contest):

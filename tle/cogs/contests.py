@@ -755,7 +755,7 @@ class Contests(commands.Cog):
                 self.average_rating /= self.rated_count
 
             def __str__(self):
-                return f"{self.handle}: {self.contest_count} {self.rated_count} {self.rating_inc} {self.average_rating} {self.problems_solved}"
+                return f"{self.handle}: {self.contest_count} {self.rated_count} {self.rating_inc} {self.average_rating} {self.problems_solved} ({self.initial_rating}, {self.last_rating})"
 
         handle_contest_data = []
 
@@ -770,6 +770,9 @@ class Contests(commands.Cog):
             data.finalize()
         for data in handle_contest_data[:30]:
             print(str(data))
+        for data in handle_contest_data:
+            if data.handle == "codelegend" or data.handle == "menavlikar.rutvij":
+                print(data)
 
         div_thresholds = {1: [2100, 3000], 2: [1600, 2100], 3: [0, 1600]}
 
@@ -878,6 +881,7 @@ class Contests(commands.Cog):
                 descriptions = []
 
                 if residual == "":
+                    print(data_list, embed_title, div_num)
                     for handle in data_list:
                         member = handle_to_member[handle]
                         mention_str = f"{member.mention} [{handle}]({cf.PROFILE_BASE_URL}{handle})"
