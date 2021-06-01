@@ -705,6 +705,8 @@ class Contests(commands.Cog):
         ]
 
         class HandleContestData:
+            rank_to_role = {role.name: role for role in ctx.guild.roles}
+
             def __init__(self, handle):
                 self.handle = handle
                 # includes official, unofficial
@@ -752,6 +754,21 @@ class Contests(commands.Cog):
                     )
                 )
 
+            def rating_to_displayable_rank(self, rating):
+                rank = cf.rating2rank(rating).title
+                role = self.rank_to_role.get(rank)
+                return role.mention if role else rank
+
+            def get_rank_update(self):
+                if self.initial_rating == -1:
+                    return None
+                init_rank = self.rating_to_displayable_rank(self.initial_rating)
+                final_rank = self.rating_to_displayable_rank(self.last_rating)
+                if init_rank != final_rank and self.initial_rating < self.last_rating:
+                    return init_rank, final_rank
+
+                return None
+
             def finalize(self):
                 if self.rated_count == 0:
                     return
@@ -778,30 +795,6 @@ class Contests(commands.Cog):
                 self.logger.info(data)
 
         div_thresholds = {1: [2100, 3000], 2: [1600, 2100], 3: [0, 1600]}
-
-        def new_in_division(div_num):
-            assert div_num < 3
-            div_low_rating, div_high_rating = div_thresholds[div_num]
-            prev_div_low_rating, prev_div_high_rating = div_thresholds[div_num + 1]
-
-            usable_data = list(
-                filter(
-                    lambda data: div_low_rating <= data.last_rating < div_high_rating
-                    and prev_div_low_rating
-                    <= data.initial_rating
-                    < prev_div_high_rating,
-                    handle_contest_data,
-                )
-            )
-
-            new_in_div = sorted(
-                usable_data,
-                key=lambda x: x.last_rating,
-                reverse=True,
-            )[:_TOP_PARTICIPANTS_SHOWN]
-            new_in_div = [x.handle for x in new_in_div]
-
-            return new_in_div
 
         def division_based_statistics(div_num):
             t_low, t_high = div_thresholds[div_num]
@@ -842,14 +835,11 @@ class Contests(commands.Cog):
                 (x.handle, x.problems_solved) for x in most_problems_solved
             ]
 
-            new_in_div = [] if div_num == 3 else new_in_division(div_num)
-
             return (
                 handle_contest_count,
                 highest_avg_rating,
                 highest_rating_inc,
                 most_problems_solved,
-                new_in_div,
             )
 
         if wait_msg:
@@ -909,7 +899,6 @@ class Contests(commands.Cog):
                 highest_avg_rating,
                 highest_rating_inc,
                 most_problems_solved,
-                new_in_div,
             ) = division_based_statistics(div_num)
 
             mc_title = "Most contests given"
@@ -925,18 +914,46 @@ class Contests(commands.Cog):
                 "points",
             )
 
-            if div_num != 3:
-                new_in_div_title = "Upgraded division"
-                make_embed(
-                    new_in_div_title,
-                    new_in_div,
-                )
             # mp_title = "Most problems solved"
             # make_embed(
             #     mp_title,
             #     most_problems_solved,
             #     "problems",
             # )
+
+            await ctx.channel.send(embed=embed)
+
+        # only expert or above rank updates
+        rank_updates = list(
+            filter(
+                lambda x: x.last_rating >= 1600 and x.get_rank_update(),
+                handle_contest_data,
+            )
+        )
+        rank_updates = sorted(rank_updates, key=lambda x: x.last_rating, reverse=True)
+        rank_changes_str = []
+        for update in rank_updates:
+            change_handle = update.handle
+            old_role, new_role = update.get_rank_update()
+            member = handle_to_member[change_handle]
+            rank_change_str = (
+                f"{member.mention} [{change_handle}]({cf.PROFILE_BASE_URL}{change_handle}): {old_role} "
+                f"\N{LONG RIGHTWARDS ARROW} {new_role}"
+            )
+            rank_changes_str.append(rank_change_str)
+
+        if rank_changes_str:
+            embed_color_seed = random.randrange(0, 100)
+            embed = discord.Embed(
+                title=f"Rank upgrades of server members in {display_month}",
+                color=embed_color_seed,
+                description="\n".join(rank_changes_str),
+            )
+
+            embed.set_author(name="Codeforces")
+            embed.set_thumbnail(
+                url="https://storage.googleapis.com/kaggle-datasets-images/742290/1285655/87aed221116e8abb4e01e98b15fd5b75/dataset-card.png?t=2020-06-28-00-49-57"
+            )
 
             await ctx.channel.send(embed=embed)
 
