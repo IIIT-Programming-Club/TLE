@@ -712,6 +712,9 @@ class Contests(commands.Cog):
                 self.average_rating = 0
                 self.problems_solved = 0
 
+                self.last_rating = 0
+                self.initial_rating = -1
+
             def update_with_ranklist(self, ranklist):
                 if self.handle not in ranklist.standing_by_id:
                     return
@@ -729,6 +732,9 @@ class Contests(commands.Cog):
                     delta = new - old
                     if delta > 0:
                         self.rating_inc += delta
+                    self.last_rating = new
+                    if self.initial_rating == -1:
+                        self.initial_rating = old
 
             async def count_problems_solved(self):
                 submissions = await cf.user.status(handle=self.handle)
@@ -765,9 +771,33 @@ class Contests(commands.Cog):
         for data in handle_contest_data[:30]:
             print(str(data))
 
+        div_thresholds = {1: [2100, 3000], 2: [1600, 2100], 3: [0, 1600]}
+
+        def new_in_division(div_num):
+            assert div_num < 3
+            div_low_rating, div_high_rating = div_thresholds[div_num]
+            prev_div_low_rating, prev_div_high_rating = div_thresholds[div_num + 1]
+
+            usable_data = list(
+                filter(
+                    lambda data: div_low_rating <= data.last_rating < div_high_rating and
+                                 prev_div_low_rating <= data.initial_rating < prev_div_high_rating,
+                    handle_contest_data,
+                )
+            )
+
+            new_in_div = sorted(
+                usable_data,
+                key=lambda x: x.last_rating,
+                reverse=True,
+            )[:_TOP_PARTICIPANTS_SHOWN]
+            new_in_div = [x.handle for x in new_in_div]
+
+            return new_in_div
+
+
         def division_based_statistics(div_num):
-            thresholds = {1: [2100, 3000], 2: [1600, 2100], 3: [0, 1600]}
-            t_low, t_high = thresholds[div_num]
+            t_low, t_high = div_thresholds[div_num]
             # minimum number of rated contests required in given month
             count_requirement = {1: 1, 2: 2, 3: 3}
             rated_contest_req = 0  # count_requirement[div_num]
@@ -786,7 +816,7 @@ class Contests(commands.Cog):
                     reverse=True,
                 )[:_TOP_PARTICIPANTS_SHOWN]
 
-            handle_contest_count = sort_helper(lambda x: x.rated_count)
+            handle_contest_count = sort_helper(lambda x: (x.rated_count, x.average_rating))
             highest_avg_rating = sort_helper(lambda x: x.average_rating)
             highest_rating_inc = sort_helper(lambda x: x.rating_inc)
             most_problems_solved = sort_helper(lambda x: x.problems_solved)
@@ -803,11 +833,14 @@ class Contests(commands.Cog):
                 (x.handle, x.problems_solved) for x in most_problems_solved
             ]
 
+            new_in_div = [] if div_num == 3 else new_in_division(div_num)
+
             return (
                 handle_contest_count,
                 highest_avg_rating,
                 highest_rating_inc,
                 most_problems_solved,
+                new_in_div
             )
 
         if wait_msg:
@@ -841,29 +874,33 @@ class Contests(commands.Cog):
                 url="https://storage.googleapis.com/kaggle-datasets-images/742290/1285655/87aed221116e8abb4e01e98b15fd5b75/dataset-card.png?t=2020-06-28-00-49-57"
             )
 
-            def make_embed(embed_title, data_list, residual):
+            def make_embed(embed_title, data_list, residual=""):
                 descriptions = []
 
-                for handle, count in data_list:
-                    cnt = int(count)
-                    if cnt == 0:
-                        break
-                    member = handle_to_member[handle]
-                    mention_str = f"{member.mention} [{handle}]({cf.PROFILE_BASE_URL}{handle}): {cnt} {residual}"
-                    descriptions.append(mention_str)
-
-                if not descriptions:
-                    value = "Not enough participants"
+                if residual == "":
+                    for handle in data_list:
+                        member = handle_to_member[handle]
+                        mention_str = f"{member.mention} [{handle}]({cf.PROFILE_BASE_URL}{handle})"
+                        descriptions.append(mention_str)
                 else:
-                    value = "\n".join(descriptions)
+                    for handle, count in data_list:
+                        cnt = int(count)
+                        if cnt == 0:
+                            break
+                        member = handle_to_member[handle]
+                        mention_str = f"{member.mention} [{handle}]({cf.PROFILE_BASE_URL}{handle}): {cnt} {residual}"
+                        descriptions.append(mention_str)
 
-                embed.add_field(name=embed_title, value=value, inline=False)
+                if descriptions:
+                    value = "\n".join(descriptions)
+                    embed.add_field(name=embed_title, value=value, inline=False)
 
             (
                 most_contests,
                 highest_avg_rating,
                 highest_rating_inc,
                 most_problems_solved,
+                new_in_div
             ) = division_based_statistics(div_num)
 
             mc_title = "Most contests given"
@@ -878,6 +915,13 @@ class Contests(commands.Cog):
                 highest_rating_inc,
                 "points",
             )
+
+            if div_num != 3:
+                new_in_div_title = "Upgraded division"
+                make_embed(
+                    new_in_div_title,
+                    new_in_div,
+                )
             # mp_title = "Most problems solved"
             # make_embed(
             #     mp_title,
