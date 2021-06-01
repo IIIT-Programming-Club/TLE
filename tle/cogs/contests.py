@@ -681,6 +681,9 @@ class Contests(commands.Cog):
             <= contest.startTimeSeconds + contest.durationSeconds
             < end_seconds
         ]
+        contests_usable = sorted(
+            contests_usable, key=lambda x: x.startTimeSeconds + x.durationSeconds
+        )
 
         async def get_standings(contest):
             try:
@@ -769,10 +772,10 @@ class Contests(commands.Cog):
         for data in handle_contest_data:
             data.finalize()
         for data in handle_contest_data[:30]:
-            print(str(data))
+            self.logger.info(str(data))
         for data in handle_contest_data:
             if data.handle == "codelegend" or data.handle == "menavlikar.rutvij":
-                print(data)
+                self.logger.info(data)
 
         div_thresholds = {1: [2100, 3000], 2: [1600, 2100], 3: [0, 1600]}
 
@@ -783,8 +786,10 @@ class Contests(commands.Cog):
 
             usable_data = list(
                 filter(
-                    lambda data: div_low_rating <= data.last_rating < div_high_rating and
-                                 prev_div_low_rating <= data.initial_rating < prev_div_high_rating,
+                    lambda data: div_low_rating <= data.last_rating < div_high_rating
+                    and prev_div_low_rating
+                    <= data.initial_rating
+                    < prev_div_high_rating,
                     handle_contest_data,
                 )
             )
@@ -797,7 +802,6 @@ class Contests(commands.Cog):
             new_in_div = [x.handle for x in new_in_div]
 
             return new_in_div
-
 
         def division_based_statistics(div_num):
             t_low, t_high = div_thresholds[div_num]
@@ -819,7 +823,9 @@ class Contests(commands.Cog):
                     reverse=True,
                 )[:_TOP_PARTICIPANTS_SHOWN]
 
-            handle_contest_count = sort_helper(lambda x: (x.rated_count, x.average_rating))
+            handle_contest_count = sort_helper(
+                lambda x: (x.rated_count, x.average_rating)
+            )
             highest_avg_rating = sort_helper(lambda x: x.average_rating)
             highest_rating_inc = sort_helper(lambda x: x.rating_inc)
             most_problems_solved = sort_helper(lambda x: x.problems_solved)
@@ -843,7 +849,7 @@ class Contests(commands.Cog):
                 highest_avg_rating,
                 highest_rating_inc,
                 most_problems_solved,
-                new_in_div
+                new_in_div,
             )
 
         if wait_msg:
@@ -881,7 +887,6 @@ class Contests(commands.Cog):
                 descriptions = []
 
                 if residual == "":
-                    print(data_list, embed_title, div_num)
                     for handle in data_list:
                         member = handle_to_member[handle]
                         mention_str = f"{member.mention} [{handle}]({cf.PROFILE_BASE_URL}{handle})"
@@ -904,7 +909,7 @@ class Contests(commands.Cog):
                 highest_avg_rating,
                 highest_rating_inc,
                 most_problems_solved,
-                new_in_div
+                new_in_div,
             ) = division_based_statistics(div_num)
 
             mc_title = "Most contests given"
