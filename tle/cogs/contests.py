@@ -1,4 +1,5 @@
 import asyncio
+import datetime
 import functools
 import json
 import logging
@@ -718,6 +719,7 @@ class Contests(commands.Cog):
                 self.problems_solved = 0
 
                 self.last_rating = 0
+                self.peak_rating = 0
                 self.initial_rating = -1
 
             def update_with_ranklist(self, ranklist):
@@ -738,6 +740,7 @@ class Contests(commands.Cog):
                     if delta > 0:
                         self.rating_inc += delta
                     self.last_rating = new
+                    self.peak_rating = max(self.peak_rating, new)
                     if self.initial_rating == -1:
                         self.initial_rating = old
 
@@ -763,8 +766,8 @@ class Contests(commands.Cog):
                 if self.initial_rating == -1:
                     return None
                 init_rank = self.rating_to_displayable_rank(self.initial_rating)
-                final_rank = self.rating_to_displayable_rank(self.last_rating)
-                if init_rank != final_rank and self.initial_rating < self.last_rating:
+                final_rank = self.rating_to_displayable_rank(self.peak_rating)
+                if init_rank != final_rank and self.initial_rating < self.peak_rating:
                     return init_rank, final_rank
 
                 return None
@@ -783,16 +786,19 @@ class Contests(commands.Cog):
             obj = HandleContestData(handle)
             for ranklist in contest_standings:
                 obj.update_with_ranklist(ranklist)
-            # await obj.count_problems_solved()
             handle_contest_data.append(obj)
 
-        for data in handle_contest_data:
-            data.finalize()
+        TIMES_PER_SECOND = 5
+        PAUSE_DELAY = 1 / TIMES_PER_SECOND + 0.01
+
+        time.sleep(PAUSE_DELAY)
+        for obj in handle_contest_data:
+            await obj.count_problems_solved()
+            obj.finalize()
+            time.sleep(PAUSE_DELAY)
+
         for data in handle_contest_data[:30]:
             self.logger.info(str(data))
-        for data in handle_contest_data:
-            if data.handle == "codelegend" or data.handle == "menavlikar.rutvij":
-                self.logger.info(data)
 
         div_thresholds = {1: [2100, 3000], 2: [1600, 2100], 3: [0, 1600]}
 
@@ -914,12 +920,12 @@ class Contests(commands.Cog):
                 "points",
             )
 
-            # mp_title = "Most problems solved"
-            # make_embed(
-            #     mp_title,
-            #     most_problems_solved,
-            #     "problems",
-            # )
+            mp_title = "Most problems solved"
+            make_embed(
+                mp_title,
+                most_problems_solved,
+                "problems",
+            )
 
             await ctx.channel.send(embed=embed)
 
