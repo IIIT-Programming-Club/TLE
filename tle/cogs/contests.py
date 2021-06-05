@@ -788,7 +788,7 @@ class Contests(commands.Cog):
                 obj.update_with_ranklist(ranklist)
             handle_contest_data.append(obj)
 
-        TIMES_PER_SECOND = 5
+        TIMES_PER_SECOND = 1
         PAUSE_DELAY = 1 / TIMES_PER_SECOND + 0.01
 
         time.sleep(PAUSE_DELAY)
