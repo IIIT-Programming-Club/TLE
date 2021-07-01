@@ -779,6 +779,12 @@ class Contests(commands.Cog):
                 if self.rated_count == 0:
                     return
                 self.average_rating /= self.rated_count
+                self.max_rating = 0
+                # apparently one of these is None :/
+                if self.initial_rating:
+                    self.max_rating = max(self.max_rating, self.initial_rating)
+                if self.peak_rating:
+                    self.max_rating = max(self.max_rating, self.peak_rating)
 
             def __str__(self):
                 return f"{self.handle}: {self.contest_count} {self.rated_count} {self.rating_inc} {self.average_rating} {self.problems_solved} ({self.initial_rating}, {self.last_rating}, {self.peak_rating})"
@@ -806,7 +812,7 @@ class Contests(commands.Cog):
             for obj in handle_contest_data:
                 if obj.handle == info.handle:
                     assert obj.initial_rating == -1
-                    obj.initial_rating = info.rating
+                    obj.peak_rating = obj.initial_rating = info.rating
 
         for obj in handle_contest_data:
             obj.finalize()
@@ -823,7 +829,7 @@ class Contests(commands.Cog):
             usable_data = list(
                 filter(
                     lambda data: t_low
-                    <= max(data.initial_rating, data.peak_rating)
+                    <= data.max_rating
                     < t_high,
                     handle_contest_data,
                 )
@@ -948,11 +954,11 @@ class Contests(commands.Cog):
         # only expert or above rank updates
         rank_updates = list(
             filter(
-                lambda x: x.peak_rating >= 1600 and x.get_rank_update(),
+                lambda x: x.max_rating >= 1600 and x.get_rank_update(),
                 handle_contest_data,
             )
         )
-        rank_updates = sorted(rank_updates, key=lambda x: x.peak_rating, reverse=True)
+        rank_updates = sorted(rank_updates, key=lambda x: x.max_rating, reverse=True)
         rank_changes_str = []
         for update in rank_updates:
             change_handle = update.handle
