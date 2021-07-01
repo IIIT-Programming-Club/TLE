@@ -776,9 +776,8 @@ class Contests(commands.Cog):
                 return None
 
             def finalize(self):
-                if self.rated_count == 0:
-                    return
-                self.average_rating /= self.rated_count
+                if self.rated_count != 0:
+                    self.average_rating /= self.rated_count
                 self.max_rating = 0
                 # apparently one of these is None :/
                 if self.initial_rating:
