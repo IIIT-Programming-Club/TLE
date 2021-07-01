@@ -778,7 +778,7 @@ class Contests(commands.Cog):
                 self.average_rating /= self.rated_count
 
             def __str__(self):
-                return f"{self.handle}: {self.contest_count} {self.rated_count} {self.rating_inc} {self.average_rating} {self.problems_solved} ({self.initial_rating}, {self.last_rating})"
+                return f"{self.handle}: {self.contest_count} {self.rated_count} {self.rating_inc} {self.average_rating} {self.problems_solved} ({self.initial_rating}, {self.last_rating}, {self.peak_rating})"
 
         handle_contest_data = []
 
@@ -806,7 +806,7 @@ class Contests(commands.Cog):
             t_low, t_high = div_thresholds[div_num]
             # minimum number of rated contests required in given month
             count_requirement = {1: 1, 2: 2, 3: 3}
-            rated_contest_req = 0  # count_requirement[div_num]
+            rated_contest_req = 1  # count_requirement[div_num]
             usable_data = list(
                 filter(
                     lambda data: t_low <= data.average_rating < t_high
@@ -932,11 +932,11 @@ class Contests(commands.Cog):
         # only expert or above rank updates
         rank_updates = list(
             filter(
-                lambda x: x.last_rating >= 1600 and x.get_rank_update(),
+                lambda x: x.peak_rating >= 1600 and x.get_rank_update(),
                 handle_contest_data,
             )
         )
-        rank_updates = sorted(rank_updates, key=lambda x: x.last_rating, reverse=True)
+        rank_updates = sorted(rank_updates, key=lambda x: x.peak_rating, reverse=True)
         rank_changes_str = []
         for update in rank_updates:
             change_handle = update.handle
