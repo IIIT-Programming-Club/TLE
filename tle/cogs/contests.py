@@ -705,6 +705,9 @@ class Contests(commands.Cog):
             await get_standings(contest) for contest in contests_usable
         ]
 
+        TIMES_PER_SECOND = 1
+        PAUSE_DELAY = 1 / TIMES_PER_SECOND + 0.01
+
         class HandleContestData:
             rank_to_role = {role.name: role for role in ctx.guild.roles}
 
@@ -782,20 +785,31 @@ class Contests(commands.Cog):
 
         handle_contest_data = []
 
+        no_contest_handles = []
+
         for handle in handles:
             obj = HandleContestData(handle)
             for ranklist in contest_standings:
                 obj.update_with_ranklist(ranklist)
+            if obj.initial_rating == -1:
+                no_contest_handles.append(obj.handle)
             handle_contest_data.append(obj)
-
-        TIMES_PER_SECOND = 1
-        PAUSE_DELAY = 1 / TIMES_PER_SECOND + 0.01
 
         time.sleep(PAUSE_DELAY)
         for obj in handle_contest_data:
             await obj.count_problems_solved()
-            obj.finalize()
             time.sleep(PAUSE_DELAY)
+
+        # this will handle chunk creation etc.
+        information = await cf.user.info(handles=no_contest_handles)
+        for info in information:
+            for obj in handle_contest_data:
+                if obj.handle == info.handle:
+                    assert obj.initial_rating == -1
+                    obj.initial_rating = info.rating
+
+        for obj in handle_contest_data:
+            obj.finalize()
 
         for data in handle_contest_data[:30]:
             self.logger.info(str(data))
@@ -806,11 +820,11 @@ class Contests(commands.Cog):
             t_low, t_high = div_thresholds[div_num]
             # minimum number of rated contests required in given month
             count_requirement = {1: 1, 2: 2, 3: 3}
-            rated_contest_req = 1  # count_requirement[div_num]
             usable_data = list(
                 filter(
-                    lambda data: t_low <= data.average_rating < t_high
-                    and data.rated_count >= rated_contest_req,
+                    lambda data: t_low
+                    <= max(data.initial_rating, data.peak_rating)
+                    < t_high,
                     handle_contest_data,
                 )
             )
@@ -830,7 +844,9 @@ class Contests(commands.Cog):
             most_problems_solved = sort_helper(lambda x: x.problems_solved)
 
             handle_contest_count = [
-                (x.handle, x.rated_count) for x in handle_contest_count
+                (x.handle, x.rated_count)
+                for x in handle_contest_count
+                if x.rated_count >= 1
             ]
             highest_avg_rating = [
                 (x.handle, x.average_rating) for x in highest_avg_rating
