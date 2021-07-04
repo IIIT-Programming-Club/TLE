@@ -776,16 +776,21 @@ class Handles(commands.Cog):
         def make_best_ranks_embed(official):
             top_ranks_list = top_ranks_str_official if official else top_ranks_str
             emoji = ":partying_face:" if official else ":raised_hands:"
-            title = "Top five ranks " + ("(official)" if official else "(all)")
-            title_use = f"{title} {emoji}"
 
             if official and top_ranks_str_official == top_ranks_str:
-                description = "Same as all ranks"
+                return None
+
+            description = (
+                "\n".join(top_ranks_list)
+                or "Nobody participated in todays contest :("
+            )
+
+            title = "Top five ranks "
+            if top_ranks_str == top_ranks_str_official:
+                title += "(all)"
             else:
-                description = (
-                    "\n".join(top_ranks_list)
-                    or "Nobody participated in todays contest :("
-                )
+                title += "(official)" if official else "(all)"
+            title_use = f"{title} {emoji}"
 
             # make the embed object
             embed_obj = discord_common.cf_color_embed_fixed(
@@ -808,8 +813,10 @@ class Handles(commands.Cog):
         top_five_ranks_official = make_best_ranks_embed(official=True)
         top_five_ranks_unofficial = make_best_ranks_embed(official=False)
 
-        embeds.append(top_five_ranks_official)
-        embeds.append(top_five_ranks_unofficial)
+        if top_five_ranks_official:
+            embeds.append(top_five_ranks_official)
+        if top_five_ranks_unofficial:
+            embeds.append(top_five_ranks_unofficial)
 
         return embeds
 
