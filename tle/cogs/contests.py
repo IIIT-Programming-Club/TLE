@@ -680,7 +680,7 @@ class Contests(commands.Cog):
             for contest in finished_contests
             if start_seconds
             <= contest.startTimeSeconds + contest.durationSeconds
-            < end_seconds
+            < end_seconds and contest.id not in cf_common.cache_system2.CONTEST_BLACKLIST
         ]
         contests_usable = sorted(
             contests_usable, key=lambda x: x.startTimeSeconds + x.durationSeconds
