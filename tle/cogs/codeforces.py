@@ -326,12 +326,13 @@ class Codeforces(commands.Cog):
         submissions = await cf.user.status(handle=handle)
         solved = {sub.problem.name for sub in submissions}
         noguds = cf_common.user_db.get_noguds(ctx.message.author.id)
-
+        if rating < 800:
+            rating = 800
         problems = [
             prob
             for prob in cf_common.cache2.problem_cache.problems
             if (
-                prob.rating == rating + delta
+                prob.rating == max(rating + delta,800)
                 and prob.name not in solved
                 and prob.name not in noguds
             )
