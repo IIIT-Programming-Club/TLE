@@ -23,6 +23,7 @@ import cairo
 import os
 import time
 import gi
+import requests
 
 gi.require_version("Pango", "1.0")
 gi.require_version("PangoCairo", "1.0")
@@ -348,6 +349,36 @@ class Handles(commands.Cog):
         # CF API returns correct handle ignoring case, update to it
         users = await cf.user.info(handles=[handle])
         await self._set(ctx, member, users[0])
+
+    @handle.command(brief="Refreshing the handles of users after cf magic")
+    @commands.has_any_role("Admin", "Moderator")
+    async def refresh(self, ctx):
+        await ctx.send("Please wait...")
+        registeredUsers = cf_common.user_db.get_cf_users_for_guild(ctx.guild.id)
+        totalUsers = len(registeredUsers)
+        done = 0
+        for user in registeredUsers:
+            discordID = user[0]
+            currHandle = user[1].handle
+            oldURL = 'https://codeforces.com/profile/' + currHandle
+            newHandle = str((requests.get(oldURL).url)).split('/')[-1]
+            if newHandle != currHandle:
+                users = await cf.user.info(handles=[newHandle])
+                try:
+                    cf_common.user_db.set_handle(discordID, ctx.guild.id, newHandle)
+                except db.UniqueConstraintFailed:
+                    raise HandleCogError(
+                        f"The handle `{newHandle}` is already associated with another user."
+                    )
+                cf_common.user_db.cache_cf_user(users[0])
+                sleep(0.2)
+            done = done + 1
+            if done == int(totalUsers/3):
+                await ctx.send("Updated 33% handles.")
+            if done == int(2*totalUsers/3):
+                await ctx.send("Updated 66% handles.")
+        embed = discord_common.embed_success(f"Updated handles for server members.")
+        await ctx.send(embed=embed)
 
     def _set_update(self, ctx, member, user):
         handle = user.handle
