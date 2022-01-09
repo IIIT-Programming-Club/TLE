@@ -371,7 +371,7 @@ class Handles(commands.Cog):
                         f"The handle `{newHandle}` is already associated with another user."
                     )
                 cf_common.user_db.cache_cf_user(users[0])
-                sleep(0.2)
+                time.sleep(0.2)
             done = done + 1
             if done == int(totalUsers/3):
                 await ctx.send("Updated 33% handles.")
